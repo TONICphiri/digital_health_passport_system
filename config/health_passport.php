@@ -51,10 +51,9 @@ return [
     ],
 
     // The first System Administrator account created by the seeder.
-    'admin' => [
-        'name' => env('ADMIN_NAME', 'System Administrator'),
-        'email' => env('ADMIN_EMAIL', 'phiritonic550@gmail.com'),
-        'password' => env('ADMIN_PASSWORD', 'Password@2026'),
+   'admin' => [
+    'name' => env('ADMIN_NAME', 'System Administrator'),
+    'email' => env('ADMIN_EMAIL', 'phiritonic550@gmail.com'),
+    'password' => env('ADMIN_PASSWORD'),
     ],
-
 ];
