@@ -25,10 +25,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->web(append: [
-            EnsureAccountIsActive::class,
-            EnsurePasswordIsChanged::class,
-        ]);
+        // Vercel terminates HTTPS and forwards requests through a proxy.
+        $middleware->trustProxies(at: '*');
 
         $middleware->alias([
             'role' => RoleMiddleware::class,

@@ -4,13 +4,14 @@ namespace App\Providers;
 
 use App\Listeners\RecordReminderDelivery;
 use App\Services\SettingService;
-use Illuminate\Notifications\Events\NotificationFailed;
-use Illuminate\Notifications\Events\NotificationSent;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Notifications\Events\NotificationFailed;
+use Illuminate\Notifications\Events\NotificationSent;
 use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Throwable;
@@ -24,6 +25,12 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Vercel serves the site over HTTPS but reaches PHP through a proxy,
+        // so every generated link, asset and form action must use https.
+        if (config('app.env') === 'production') {
+            URL::forceScheme('https');
+        }
+
         Paginator::defaultView('components.pagination');
 
         Event::listen(NotificationSent::class, [RecordReminderDelivery::class, 'onSent']);
