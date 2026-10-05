@@ -1,0 +1,73 @@
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-sans/700.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Shared interface components. Every corner is square and every surface is a
+ * flat colour, as set in tailwind.config.js.
+ */
+@layer base {
+    html { -webkit-font-smoothing: antialiased; }
+    body { @apply bg-paper font-sans text-[15px] leading-6 text-ink; }
+    h1, h2, h3 { @apply font-semibold tracking-tight text-ink; }
+    [x-cloak] { display: none !important; }
+    :focus-visible { @apply outline-none ring-2 ring-brand-500 ring-offset-1; }
+}
+
+@layer components {
+    /* Buttons */
+    .btn { @apply inline-flex items-center justify-center gap-2 border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50; }
+    .btn-primary { @apply btn border-brand-700 bg-brand-700 text-white hover:border-brand-800 hover:bg-brand-800; }
+    .btn-secondary { @apply btn border-line bg-white text-ink hover:border-brand-600 hover:text-brand-700; }
+    .btn-danger { @apply btn border-red-700 bg-white text-red-700 hover:bg-red-700 hover:text-white; }
+    .btn-sm { @apply px-3 py-1.5 text-[13px]; }
+    .link { @apply font-medium text-brand-700 underline-offset-2 hover:underline; }
+
+    /* Forms */
+    .label { @apply mb-1 block text-sm font-medium text-ink; }
+    .input { @apply block w-full border-line bg-white px-3 py-2 text-sm text-ink placeholder:text-muted/70 focus:border-brand-600 focus:ring-brand-600; }
+    .input-error { @apply border-red-600 focus:border-red-600 focus:ring-red-600; }
+    .field-error { @apply mt-1 text-[13px] text-red-700; }
+    .field-help { @apply mt-1 text-[13px] text-muted; }
+
+    /* Surfaces */
+    .panel { @apply border border-line bg-white shadow-card; }
+    .panel-header { @apply flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3.5; }
+    .panel-title { @apply text-[15px] font-semibold text-ink; }
+    .panel-body { @apply px-5 py-4; }
+
+    /* Tables */
+    .table { @apply w-full border-collapse text-left text-sm; }
+    .table thead th { @apply border-b border-line bg-paper px-4 py-2.5 text-[12px] font-semibold uppercase tracking-wide text-muted; }
+    .table tbody td { @apply border-b border-line px-4 py-3 align-top; }
+    .table tbody tr:last-child td { @apply border-b-0; }
+    .table tbody tr:hover { @apply bg-brand-50/60; }
+
+    /* Status badges, one per enum tone */
+    .badge { @apply inline-flex items-center border px-2 py-0.5 text-[12px] font-medium; }
+    .badge-success { @apply badge border-brand-200 bg-brand-50 text-brand-800; }
+    .badge-warning { @apply badge border-gold-600/30 bg-gold-100 text-gold-700; }
+    .badge-info { @apply badge border-sky-200 bg-sky-50 text-sky-800; }
+    .badge-danger { @apply badge border-red-200 bg-red-50 text-red-800; }
+    .badge-neutral { @apply badge border-line bg-paper text-muted; }
+
+    /* Description lists */
+    .detail-list { @apply grid gap-x-6 gap-y-3 sm:grid-cols-2; }
+    .detail-list dt { @apply text-[12px] font-medium uppercase tracking-wide text-muted; }
+    .detail-list dd { @apply mt-0.5 text-sm text-ink; }
+
+    .mono { @apply font-mono text-[13px] tracking-tight; }
+}
+
+@media print {
+    .no-print { display: none !important; }
+    body { background: #fff; }
+    .panel { box-shadow: none; }
+}
