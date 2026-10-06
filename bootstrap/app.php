@@ -25,7 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Vercel terminates HTTPS and forwards requests through a proxy.
+       
         $middleware->trustProxies(at: '*');
 
         $middleware->alias([
@@ -41,14 +41,11 @@ return Application::configure(basePath: dirname(__DIR__))
         // Business rule messages are expected and shown to the user, not logged.
         $exceptions->dontReport(WorkflowException::class);
 
-        // Every logged error carries a short reference number. The same number
-        // is shown to the user so support staff can find the entry in the log.
+        // Every logged error carries a short reference number.
         $exceptions->context(fn () => ['reference' => app()->has('error.reference')
             ? app('error.reference')
             : tap(strtoupper(Str::random(8)), fn ($reference) => app()->instance('error.reference', $reference))]);
 
-        // An expired form session sends the user back with a clear message
-        // instead of the default "Page Expired" screen.
         $exceptions->render(function (TokenMismatchException $exception, Request $request) {
             if ($request->expectsJson()) {
                 return null;
@@ -58,8 +55,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 ->with('error', 'Your session expired before the form was sent. Please try again.');
         });
 
-        // Unexpected errors show a friendly page with the reference number.
-        // Details are only shown on screen when debug mode is switched on.
+  
         $exceptions->render(function (Throwable $exception, Request $request) {
             if (config('app.debug')
                 || $exception instanceof HttpExceptionInterface

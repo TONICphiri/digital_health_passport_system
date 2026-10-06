@@ -49,6 +49,14 @@
         <div class="border-t border-brand-800 px-5 py-3 text-[12px] text-brand-300">
             {{ $issuingAuthority }}
         </div>
+
+        <form method="POST" action="{{ route('logout') }}" class="border-t border-brand-800 px-3 py-2">
+            @csrf
+            <button type="submit" class="flex w-full items-center gap-3 px-2.5 py-2 text-sm text-brand-100 transition-colors hover:bg-brand-800/60 hover:text-white">
+                <x-icon name="logout" class="h-[18px] w-[18px] shrink-0" />
+                Sign out
+            </button>
+        </form>
     </aside>
     <div class="fixed inset-0 z-30 bg-ink/40 lg:hidden" x-show="sidebar" x-cloak @click="sidebar = false"></div>
 
