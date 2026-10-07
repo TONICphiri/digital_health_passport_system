@@ -1,5 +1,6 @@
 <?php
 
+use App\Console\Commands\CreateAdminCommand;
 use App\Exceptions\WorkflowException;
 use App\Http\Middleware\EnsureAccountIsActive;
 use App\Http\Middleware\EnsurePasswordIsChanged;
@@ -28,6 +29,13 @@ return Application::configure(basePath: dirname(__DIR__))
        
         $middleware->trustProxies(at: '*');
 
+        // Signs out users whose account or facility has been deactivated,
+        // and sends users with a one time password to choose their own.
+        $middleware->append([
+            EnsureAccountIsActive::class,
+            EnsurePasswordIsChanged::class,
+        ]);
+
         $middleware->alias([
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
@@ -37,6 +45,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo(fn () => route('login'));
         $middleware->redirectUsersTo(fn () => route('dashboard'));
     })
+    ->withCommands([
+        CreateAdminCommand::class,
+    ])
     ->withExceptions(function (Exceptions $exceptions): void {
         // Business rule messages are expected and shown to the user, not logged.
         $exceptions->dontReport(WorkflowException::class);
