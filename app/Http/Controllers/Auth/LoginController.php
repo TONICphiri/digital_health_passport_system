@@ -26,7 +26,7 @@ class LoginController extends Controller
 
         if (! Auth::attempt($credentials, $request->boolean('remember'))) {
             throw ValidationException::withMessages([
-                'email' => 'The email address or password is incorrect.',
+                'email' => 'The email or password is incorrect.',
             ]);
         }
 
