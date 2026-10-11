@@ -140,6 +140,16 @@ class Patient extends Model
         return $this->hasMany(Encounter::class)->latest('recorded_at');
     }
 
+    public function visits(): HasMany
+    {
+        return $this->hasMany(Visit::class)->latest('started_at');
+    }
+
+    public function openVisit(): ?Visit
+    {
+        return $this->visits()->open()->first();
+    }
+
     public function accesses(): HasMany
     {
         return $this->hasMany(PassportAccess::class)->latest('opened_at');

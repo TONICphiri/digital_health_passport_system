@@ -59,7 +59,7 @@ class FacilityController extends Controller
 
     public function show(Facility $facility): View
     {
-        $facility->load('district')->loadCount(['patients', 'encounters', 'users']);
+        $facility->load('district')->loadCount(['patients', 'encounters', 'visits', 'users']);
 
         return view('admin.facilities.show', [
             'facility' => $facility,

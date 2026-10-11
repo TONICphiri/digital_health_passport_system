@@ -12,6 +12,7 @@
             <x-field.input name="total_doses" label="Number of doses" type="number" min="1" max="10" :value="$vaccine->total_doses" required />
             <x-field.input name="days_between_doses" label="Days between doses" type="number" min="1" :value="$vaccine->days_between_doses" />
             <x-field.input name="recommended_age" label="Recommended age" :value="$vaccine->recommended_age" placeholder="For example, at birth" class="sm:col-span-2" />
+            <x-field.input name="recommended_age_days" label="Age for the first dose (days)" type="number" min="0" :value="$vaccine->recommended_age_days" help="The age in days at which the first dose becomes due, from birth. Leave blank if the vaccine is not tied to an age. This drives the immunisation due status and reminders." class="sm:col-span-2" />
             <x-field.checkbox name="is_active" label="In use" :checked="$vaccine->is_active" class="sm:col-span-2" />
         </div>
         <div class="flex justify-end gap-2 border-t border-line px-5 py-3">

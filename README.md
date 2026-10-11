@@ -2,7 +2,7 @@
 
 A web based health passport. Each person carries a card with a QR code. A health worker scans the card to open the passport, adds what happened at the visit, and the person can read their own passport and see who opened it.
 
-It is not a hospital management system or a patient record system. It has no wards, beds, pharmacy stock, appointments or billing. It keeps only the essentials that should travel with a person from one facility to the next.
+It is not a hospital management system or a patient record system. It has no wards, beds, pharmacy stock, appointments or billing. Tests are recorded as a test name and a result only. Dispensing only marks prescribed medicines as handed over. It keeps only the essentials that should travel with a person from one facility to the next.
 
 ## Contents
 
@@ -20,16 +20,19 @@ It is not a hospital management system or a patient record system. It has no war
 |---|---|---|
 | System Administrator | Registers facilities and facility administrators, manages the vaccine list, districts and settings, reads the activity log | See any passport |
 | Facility Administrator | Registers the health workers of one facility, updates the facility profile, reads facility reports and activity | See any passport |
-| Health Worker | Issues passports, opens a passport by scanning the card, records encounters, vaccinations and reminders | Manage accounts or settings |
+| Health Worker | Issues passports, opens a passport by scanning the card, records the stages of a visit (reception, triage, consultation, dispensing), vaccinations and reminders | Manage accounts or settings |
 | Patient | Reads their own passport and their children's, shows the QR card, sees who opened the passport | Change records |
 
 ## How a visit works
 
+A health worker's position decides which station of a visit they record: a **clerk** starts the visit at reception and notes the reason, a **nurse** or **doctor** records triage and vital signs, the **doctor** records consultation, diagnoses and prescriptions, and the **pharmacist** marks the prescribed medicines as handed over. Positions are set by the Facility Administrator when a worker's account is created. A worker without a position can issue passports, vaccinate and set reminders but cannot record a visit.
+
 1. **New holder.** The health worker issues a passport. No card exists yet, so there is nothing to scan. The passport number and QR card are produced, and the passport is open for the worker who issued it.
 2. **Every later visit begins with a scan.** The health worker opens "Open a passport" and scans the QR code on the card. Without the card, the passport number or National ID and the date of birth must match.
-3. **The passport stays open for a limited time** (30 minutes by default, set in System settings). While it is open, and only then, the health worker can read it, record an encounter, record a vaccination and set reminders. It can be closed earlier.
-4. **Every opening is recorded.** The holder sees who opened the passport, when, and how.
-5. **Children** are linked through the mother's passport, which must be open on the same device.
+3. **The passport stays open for a limited time** (30 minutes by default, set in System settings). While it is open, and only then, the health worker can read the passport and record visit stages, vaccinations and reminders. It can be closed earlier.
+4. **The visit has four stages**, each credited to the worker who recorded it. The pharmacist's handover of the last medicine completes and locks the visit, after which it can no longer be changed. A consultation with no prescribed medicines completes the visit at once.
+5. **Every opening is recorded.** The holder sees who opened the passport, when, and how.
+6. **Children** are linked through the mother's passport, which must be open on the same device.
 
 ## Running on a computer with XAMPP
 
@@ -71,29 +74,37 @@ php artisan patients:separate-adults
 
 Created when `SEED_DEMO_DATA=true`. Every account uses the password `Password@2026`.
 
-| Role | Email | Belongs to |
+| Role / Position | Email | Belongs to |
 |---|---|---|
 | System Administrator | admin@healthpassport.mw | All facilities |
 | Facility Administrator | facility@healthpassport.mw | Ndirande Community Hospital |
-| Health Worker | healthworker@healthpassport.mw | Ndirande Community Hospital |
-| Health Worker | healthworker2@healthpassport.mw | Ndirande Community Hospital |
+| Health Worker (Doctor) | healthworker@healthpassport.mw | Ndirande Community Hospital |
+| Health Worker (Nurse) | healthworker2@healthpassport.mw | Ndirande Community Hospital |
+| Health Worker (Clerk) | clerk@healthpassport.mw | Ndirande Community Hospital |
+| Health Worker (Pharmacist) | pharmacist@healthpassport.mw | Ndirande Community Hospital |
 | Patient | patient@healthpassport.mw | Grace Banda, mother of Daniel Banda |
 | Facility Administrator | zomba.admin@healthpassport.mw | Zomba Central Hospital |
-| Health Worker | zomba.healthworker@healthpassport.mw | Zomba Central Hospital |
+| Health Worker (Doctor) | zomba.healthworker@healthpassport.mw | Zomba Central Hospital |
 
 ## Running the tests
 
 The tests use a separate database so your working data is never touched.
 
 1. Create a second database named `health_passport_test`.
-2. The tests connect with the MySQL user in `.env`. The test database name is set in `phpunit.xml`.
+2. The tests connect with the MySQL user in `.env`. The test database name is set in `phpunit.xml`. Demonstration data is needed for most tests, so `SEED_DEMO_DATA` must be true when they run.
 3. Run:
 
 ```bash
-php artisan test
+SEED_DEMO_DATA=true php artisan test tests/Feature
 ```
 
-The tests cover page access for every role, the scan gate (a passport stays closed until the card is scanned, and closes again when it expires), the identity check used when a card is missing, recording encounters, linking a child through the mother's passport, and the access history shown to the holder.
+A lighter alternative needs no database server at all:
+
+```bash
+DB_CONNECTION=sqlite DB_DATABASE=:memory: SEED_DEMO_DATA=true php artisan test tests/Feature
+```
+
+The tests cover page access for every role, the scan gate (a passport stays closed until the card is scanned, and closes again when it expires), the identity check used when a card is missing, the staged visit workflow from reception to handover, linking a child through the mother's passport, and the access history shown to the holder.
 
 ## Hosting on cPanel
 

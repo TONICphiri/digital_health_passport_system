@@ -4,18 +4,23 @@ namespace App\Http\Controllers\Patients;
 
 use App\Enums\PatientStatus;
 use App\Enums\Sex;
+use App\Enums\VisitStageType;
+use App\Enums\VisitStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\PatientRequest;
 use App\Models\District;
 use App\Models\Patient;
 use App\Models\Vaccine;
+use App\Models\Visit;
 use App\Services\AuditLogger;
+use App\Services\ImmunisationStatusService;
 use App\Services\PassportAccessService;
 use App\Services\PatientRegistrationService;
 use App\Services\QrCodeService;
 use App\Services\SettingService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -30,8 +35,8 @@ class PatientController extends Controller
         private readonly PassportAccessService $access,
         private readonly SettingService $settings,
         private readonly AuditLogger $audit,
-    ) {
-    }
+        private readonly ImmunisationStatusService $immunisations,
+    ) {}
 
     public function create(Request $request): View
     {
@@ -79,14 +84,42 @@ class PatientController extends Controller
 
         $patient->load(['district', 'registeredFacility', 'emergencyContacts', 'mother', 'children', 'portalAccount']);
 
+        $openVisit = $patient->visits()->open()
+            ->with(['stages.recordedBy', 'stages.editedBy', 'observations.recordedBy', 'medications.prescribedBy', 'medications.dispensedBy', 'startedBy'])
+            ->latest('started_at')
+            ->first();
+
+        // The stages this worker may record now, and whether they may hand over
+        // medicines. A staged visit with no visit yet is checked against a
+        // draft, so the buttons match exactly what the server will allow.
+        $draft = $openVisit ?? new Visit([
+            'patient_id' => $patient->id,
+            'facility_id' => $request->user()->facility_id,
+            'status' => VisitStatus::InProgress,
+        ]);
+
+        $canRecordStage = collect(VisitStageType::cases())
+            ->mapWithKeys(fn (VisitStageType $stage) => [$stage->value => Gate::forUser($request->user())->allows('recordStage', [$draft, $stage->value])]);
+
+        $pastVisits = $patient->visits()->whereNotNull('locked_at')
+            ->with(['stages.recordedBy', 'observations.recordedBy', 'medications.prescribedBy', 'medications.dispensedBy', 'startedBy'])
+            ->latest('started_at')
+            ->limit(5)
+            ->get();
+
         return view('patients.show', [
             'patient' => $patient,
             'qrCode' => $qr->forPatient($patient, 132),
             'access' => $this->access->activeFor($request->user(), $patient),
+            'openVisit' => $openVisit,
+            'pastVisits' => $pastVisits,
+            'canRecordStage' => $canRecordStage,
+            'canDispense' => $openVisit !== null && Gate::forUser($request->user())->allows('dispense', $openVisit),
             'encounters' => $patient->encounters()->with(['facility', 'recordedBy', 'medications'])->limit(20)->get(),
             'vaccinations' => $patient->vaccinations()->with(['vaccine', 'facility'])->get(),
             'reminders' => $patient->reminders()->with('deliveries')->latest('due_on')->get(),
             'vaccines' => Vaccine::query()->where('is_active', true)->orderBy('name')->get(),
+            'immunisations' => $this->immunisations->allFor($patient),
         ]);
     }
 

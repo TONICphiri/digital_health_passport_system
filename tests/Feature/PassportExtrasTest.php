@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\UserStatus;
 use App\Models\Backup;
 use App\Models\Patient;
 use App\Models\Reminder;
@@ -13,7 +14,9 @@ use App\Services\BackupService;
 use App\Services\ReminderService;
 use App\Services\SettingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Tests\TestCase;
@@ -101,7 +104,7 @@ class PassportExtrasTest extends TestCase
     {
         $stranger = User::create([
             'name' => 'Another Holder', 'email' => 'other@example.com', 'password' => 'Password@2026',
-            'status' => \App\Enums\UserStatus::Active,
+            'status' => UserStatus::Active,
         ]);
         $stranger->assignRole('patient');
 
@@ -177,7 +180,12 @@ class PassportExtrasTest extends TestCase
 
         app(ReminderService::class)->sendDue();
 
-        $this->assertSame('skipped', ReminderDelivery::query()->where('reminder_id', $reminder->id)->value('status'));
+        // The delivery with no batch (a none- marker) is saved even on strict MySQL,
+        // so staff can see that this holder was skipped.
+        $delivery = ReminderDelivery::query()->where('reminder_id', $reminder->id)->firstOrFail();
+        $this->assertSame('skipped', $delivery->status);
+        $this->assertStringStartsWith('none-', $delivery->batch);
+        $this->assertLessThanOrEqual(64, strlen($delivery->batch));
     }
 
     /* Offline scanning */
@@ -198,6 +206,23 @@ class PassportExtrasTest extends TestCase
     private function fakeStorage(): void
     {
         Storage::fake('local');
+    }
+
+    private function tablesSnapshot(): array
+    {
+        $skip = config('health_passport.backup.skip_tables');
+        $snapshot = [];
+
+        $schema = DB::getDriverName() === 'sqlite' ? null : DB::connection()->getDatabaseName();
+
+        foreach (array_diff(Schema::getTableListing($schema, false), $skip) as $table) {
+            $rows = DB::table($table)->get()->map(fn ($row) => (array) $row)->all();
+            // Pivot tables have no id, so the rows are sorted by their full content.
+            usort($rows, fn ($a, $b) => strcmp(json_encode($a), json_encode($b)));
+            $snapshot[$table] = $rows;
+        }
+
+        return $snapshot;
     }
 
     public function test_the_administrator_makes_a_backup_is_notified_and_can_download_it(): void
@@ -239,15 +264,17 @@ class PassportExtrasTest extends TestCase
     {
         $this->fakeStorage();
         $service = app(BackupService::class);
+        // The backup is written before the administrator is notified, so the
+        // notification it creates afterwards is not part of the copy.
+        $expected = $this->tablesSnapshot();
         $backup = $service->run('manual', $this->admin());
-        $before = Patient::query()->count();
 
         Patient::query()->where('national_id', 'PL2Q8X55')->first()->forceDelete();
-        $this->assertSame($before - 1, Patient::query()->count());
+        $this->assertLessThan(count($expected['patients']), Patient::query()->count());
 
         $service->restore(Storage::disk('local')->path('backups/'.$backup->filename));
 
-        $this->assertSame($before, Patient::query()->count());
+        $this->assertSame($expected, $this->tablesSnapshot());
         $this->assertNotNull(Patient::query()->where('national_id', 'PL2Q8X55')->first());
         $this->assertTrue(Backup::query()->whereKey($backup->id)->exists(), 'The backup history is kept.');
     }

@@ -1,6 +1,6 @@
 {
-  "_offlineQueue-BgCf50_e.js": {
-    "file": "assets/offlineQueue-BgCf50_e.js",
+  "_offlineQueue-WkSL5wLn.js": {
+    "file": "assets/offlineQueue-WkSL5wLn.js",
     "name": "offlineQueue"
   },
   "node_modules/@fontsource/ibm-plex-mono/files/ibm-plex-mono-cyrillic-400-normal.woff": {
@@ -276,7 +276,7 @@
     "src": "node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-vietnamese-700-normal.woff2"
   },
   "resources/css/app.css": {
-    "file": "assets/app-D-9LOB8v.css",
+    "file": "assets/app-CuQmF0vh.css",
     "src": "resources/css/app.css",
     "isEntry": true,
     "name": "app",
@@ -285,21 +285,21 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-DouhrLj_.js",
+    "file": "assets/app-BtHnFxLB.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
     "imports": [
-      "_offlineQueue-BgCf50_e.js"
+      "_offlineQueue-WkSL5wLn.js"
     ]
   },
   "resources/js/scanner.js": {
-    "file": "assets/scanner-Dvv6WFi_.js",
+    "file": "assets/scanner-ByYDeWNd.js",
     "name": "scanner",
     "src": "resources/js/scanner.js",
     "isEntry": true,
     "imports": [
-      "_offlineQueue-BgCf50_e.js"
+      "_offlineQueue-WkSL5wLn.js"
     ]
   }
 }

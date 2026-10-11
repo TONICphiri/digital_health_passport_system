@@ -34,14 +34,14 @@
 
     <div class="mt-6 grid gap-6 lg:grid-cols-2">
         <section class="panel">
-            <div class="panel-header"><h2 class="panel-title">Recent encounters</h2></div>
-            @forelse ($recentEncounters as $encounter)
+            <div class="panel-header"><h2 class="panel-title">Recent visits</h2></div>
+            @forelse ($recentVisits as $visit)
                 <div class="border-b border-line px-5 py-3 text-sm last:border-b-0">
-                    <p class="font-medium">{{ $encounter->diagnosis ?: $encounter->reason }}</p>
-                    <p class="text-[13px] text-muted">{{ $encounter->recorded_at->format('j M Y') }}, {{ $encounter->facility->name }}</p>
+                    <p class="font-medium">{{ $visit->reason ?: $visit->status->label() }}</p>
+                    <p class="text-[13px] text-muted">{{ $visit->started_at->format('j M Y') }}, {{ $visit->facility->name }}</p>
                 </div>
             @empty
-                <x-empty title="No encounters yet" icon="stethoscope" />
+                <x-empty title="No visits yet" icon="stethoscope" />
             @endforelse
         </section>
 

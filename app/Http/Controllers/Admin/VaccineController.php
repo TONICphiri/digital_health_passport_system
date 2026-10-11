@@ -15,9 +15,7 @@ use Illuminate\View\View;
  */
 class VaccineController extends Controller
 {
-    public function __construct(private readonly AuditLogger $audit)
-    {
-    }
+    public function __construct(private readonly AuditLogger $audit) {}
 
     public function index(): View
     {
@@ -60,6 +58,7 @@ class VaccineController extends Controller
             'total_doses' => ['required', 'integer', 'min:1', 'max:10'],
             'days_between_doses' => ['nullable', 'required_unless:total_doses,1', 'integer', 'min:1', 'max:3650'],
             'recommended_age' => ['nullable', 'string', 'max:100'],
+            'recommended_age_days' => ['nullable', 'integer', 'min:0', 'max:36500'],
         ], [
             'days_between_doses.required_unless' => 'Enter the number of days between doses for a vaccine with more than one dose.',
         ]);

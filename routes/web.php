@@ -114,9 +114,13 @@ Route::middleware('auth')->group(function () use ($can) {
         Route::get('patients/{patient}/edit', [Patients\PatientController::class, 'edit'])->name('patients.edit');
         Route::put('patients/{patient}', [Patients\PatientController::class, 'update'])->name('patients.update');
     });
-    Route::middleware($can(P::RecordEncounters))->group(function () {
-        Route::get('patients/{patient}/encounters/create', [Clinical\EncounterController::class, 'create'])->name('encounters.create');
-        Route::post('patients/{patient}/encounters', [Clinical\EncounterController::class, 'store'])->name('encounters.store');
+    Route::middleware($can(P::ManageVisits))->group(function () {
+        Route::get('patients/{patient}/visits/stage/{type}', [Clinical\VisitController::class, 'createStage'])->name('visits.stage.create');
+        Route::post('patients/{patient}/visits/stage/{type}', [Clinical\VisitController::class, 'storeStage'])->name('visits.stage.store');
+    });
+    Route::middleware($can(P::DispenseMedications))->group(function () {
+        Route::get('patients/{patient}/visits/{visit}/dispense', [Clinical\VisitController::class, 'dispense'])->name('visits.dispense');
+        Route::post('patients/{patient}/visits/{visit}/dispense', [Clinical\VisitController::class, 'storeDispense'])->name('visits.dispense.store');
     });
     Route::middleware($can(P::RecordVaccinations))->group(function () {
         Route::get('patients/{patient}/vaccinations/create', [Clinical\VaccinationController::class, 'create'])->name('vaccinations.create');

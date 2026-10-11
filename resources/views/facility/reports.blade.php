@@ -13,18 +13,18 @@
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <x-stat label="Passports issued" :value="$report['passports_issued']" icon="user-plus" />
         <x-stat label="Passports opened" :value="$report['passports_opened']" icon="qr" :hint="$report['scan_rate'].'% opened by scanning the card'" />
-        <x-stat label="Encounters" :value="$report['encounters']" icon="stethoscope" />
+        <x-stat label="Visits" :value="$report['visits']" icon="stethoscope" :hint="$report['visits_completed'].' completed'" />
         <x-stat label="Vaccinations" :value="$report['vaccinations']" icon="syringe" />
     </div>
 
     <section class="panel mt-6">
-        <div class="panel-header"><h2 class="panel-title">Encounters per day</h2></div>
-        @php $max = max(1, $report['daily_encounters']->max() ?? 1); @endphp
-        @if ($report['daily_encounters']->sum() === 0)
-            <x-empty title="No encounters in this period" icon="chart" />
+        <div class="panel-header"><h2 class="panel-title">Visits per day</h2></div>
+        @php $max = max(1, $report['daily_visits']->max() ?? 1); @endphp
+        @if ($report['daily_visits']->sum() === 0)
+            <x-empty title="No visits in this period" icon="chart" />
         @else
-            <div class="flex h-48 items-end gap-1 overflow-x-auto px-5 pb-2 pt-4" role="img" aria-label="Encounters per day">
-                @foreach ($report['daily_encounters'] as $day => $total)
+            <div class="flex h-48 items-end gap-1 overflow-x-auto px-5 pb-2 pt-4" role="img" aria-label="Visits per day">
+                @foreach ($report['daily_visits'] as $day => $total)
                     <div class="flex min-w-[18px] flex-1 flex-col items-center justify-end gap-1" title="{{ \Illuminate\Support\Carbon::parse($day)->format('j M') }}: {{ $total }}">
                         <span class="text-[11px] tabular-nums text-muted">{{ $total > 0 ? $total : '' }}</span>
                         <div class="w-full {{ $total > 0 ? 'bg-brand-600' : 'bg-line' }}" style="height: {{ $total > 0 ? max(4, round($total / $max * 140)) : 1 }}px"></div>
@@ -32,14 +32,14 @@
                 @endforeach
             </div>
             <div class="flex justify-between border-t border-line px-5 py-2 text-[12px] text-muted">
-                <span>{{ \Illuminate\Support\Carbon::parse($report['daily_encounters']->keys()->first())->format('j M') }}</span>
-                <span>{{ \Illuminate\Support\Carbon::parse($report['daily_encounters']->keys()->last())->format('j M') }}</span>
+                <span>{{ \Illuminate\Support\Carbon::parse($report['daily_visits']->keys()->first())->format('j M') }}</span>
+                <span>{{ \Illuminate\Support\Carbon::parse($report['daily_visits']->keys()->last())->format('j M') }}</span>
             </div>
         @endif
     </section>
 
     <section class="panel mt-6">
         <div class="panel-header"><h2 class="panel-title">Most common diagnoses</h2></div>
-        @include('partials.ranked-list', ['rows' => $report['top_diagnoses'], 'labelKey' => 'diagnosis', 'unit' => 'encounter'])
+        @include('partials.ranked-list', ['rows' => $report['top_diagnoses'], 'labelKey' => 'diagnosis', 'unit' => 'visit'])
     </section>
 </x-layouts.app>

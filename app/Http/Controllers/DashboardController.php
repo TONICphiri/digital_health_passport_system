@@ -6,12 +6,12 @@ use App\Enums\FacilityStatus;
 use App\Enums\ReminderStatus;
 use App\Enums\RoleName;
 use App\Models\AuditLog;
-use App\Models\Encounter;
 use App\Models\Facility;
 use App\Models\PassportAccess;
 use App\Models\Patient;
 use App\Models\Reminder;
 use App\Models\User;
+use App\Models\Visit;
 use App\Services\SystemHealthService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -44,7 +44,7 @@ class DashboardController extends Controller
                 'staff' => User::query()->withRole(RoleName::HealthWorker)->count(),
                 'patients' => Patient::query()->count(),
             ],
-            'facilities' => Facility::query()->with('district')->withCount(['users', 'patients'])->latest()->limit(6)->get(),
+            'facilities' => Facility::query()->with('district')->withCount(['users', 'patients', 'visits'])->latest()->limit(6)->get(),
             'checks' => $health->checks(),
             'activity' => AuditLog::query()->with('user')->latest()->limit(8)->get(),
         ]);
@@ -58,7 +58,7 @@ class DashboardController extends Controller
             'stats' => [
                 'staff' => User::query()->where('facility_id', $facilityId)->withRole(RoleName::HealthWorker)->active()->count(),
                 'openedToday' => PassportAccess::query()->where('facility_id', $facilityId)->whereDate('opened_at', today())->count(),
-                'encountersToday' => Encounter::query()->where('facility_id', $facilityId)->whereDate('recorded_at', today())->count(),
+                'visitsToday' => Visit::query()->where('facility_id', $facilityId)->whereDate('started_at', today())->count(),
                 'issuedThisMonth' => Patient::query()->where('registered_facility_id', $facilityId)->where('created_at', '>=', today()->startOfMonth())->count(),
             ],
             'staff' => User::query()->where('facility_id', $facilityId)->withRole(RoleName::HealthWorker)->orderBy('name')->limit(6)->get(),
@@ -73,11 +73,11 @@ class DashboardController extends Controller
         return view('dashboards.health-worker', [
             'stats' => [
                 'openedToday' => PassportAccess::query()->where('user_id', $user->id)->whereDate('opened_at', today())->count(),
-                'encountersToday' => Encounter::query()->where('recorded_by', $user->id)->whereDate('recorded_at', today())->count(),
+                'visitsToday' => Visit::query()->whereHas('stages', fn ($query) => $query->where('recorded_by', $user->id)->whereDate('recorded_at', today()))->count(),
                 'issuedToday' => Patient::query()->where('registered_facility_id', $facilityId)->whereDate('created_at', today())->count(),
             ],
             'openPassports' => PassportAccess::query()->with('patient')->where('user_id', $user->id)->open()->latest('opened_at')->get(),
-            'recentEncounters' => Encounter::query()->with('patient')->where('recorded_by', $user->id)->latest('recorded_at')->limit(8)->get(),
+            'recentVisits' => Visit::query()->with('patient')->whereHas('stages', fn ($query) => $query->where('recorded_by', $user->id))->latest('started_at')->limit(8)->get(),
         ]);
     }
 
@@ -94,7 +94,7 @@ class DashboardController extends Controller
             'patient' => $patient,
             'reminders' => Reminder::query()->with('patient')->whereIn('patient_id', $familyIds)
                 ->where('status', ReminderStatus::Active)->orderBy('due_on')->limit(5)->get(),
-            'recentEncounters' => $patient->encounters()->with('facility')->limit(5)->get(),
+            'recentVisits' => Visit::query()->with('facility')->whereIn('patient_id', $familyIds)->latest('started_at')->limit(5)->get(),
             'recentAccesses' => $patient->accesses()->with(['user', 'facility'])->limit(5)->get(),
         ]);
     }

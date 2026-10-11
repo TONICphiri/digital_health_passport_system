@@ -4,10 +4,12 @@ namespace Database\Seeders;
 
 use App\Enums\AccessMethod;
 use App\Enums\FacilityStatus;
+use App\Enums\Position;
 use App\Enums\ReminderCategory;
 use App\Enums\ReminderStatus;
 use App\Enums\RoleName;
 use App\Enums\UserStatus;
+use App\Enums\VisitStageType;
 use App\Models\District;
 use App\Models\Facility;
 use App\Models\PassportAccess;
@@ -15,9 +17,11 @@ use App\Models\Patient;
 use App\Models\Reminder;
 use App\Models\User;
 use App\Models\Vaccine;
+use App\Models\Visit;
 use App\Services\EncounterService;
 use App\Services\PatientRegistrationService;
 use App\Services\VaccinationService;
+use App\Services\VisitService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 
@@ -34,6 +38,7 @@ class DemoDataSeeder extends Seeder
         private readonly PatientRegistrationService $registration,
         private readonly EncounterService $encounters,
         private readonly VaccinationService $vaccinations,
+        private readonly VisitService $visits,
     ) {
         $this->password = config('health_passport.admin.password');
     }
@@ -50,12 +55,14 @@ class DemoDataSeeder extends Seeder
         $zomba = $this->facility('Zomba Central Hospital', 'ZCH-001', 'Central Hospital', 'Government', 'Zomba', 'Kamuzu Highway, Zomba', '+265 1 527 050');
 
         $this->staff($ndirande, RoleName::FacilityAdmin, 'Martha Kumwenda', 'facility@healthpassport.mw', 'Hospital Administrator');
-        $worker = $this->staff($ndirande, RoleName::HealthWorker, 'Dr Chisomo Mvula', 'healthworker@healthpassport.mw', 'Medical Officer', 'MCM-11820');
-        $second = $this->staff($ndirande, RoleName::HealthWorker, 'Alinafe Gondwe', 'healthworker2@healthpassport.mw', 'Registered Nurse', 'NMCM-20417');
+        $worker = $this->staff($ndirande, RoleName::HealthWorker, 'Dr Chisomo Mvula', 'healthworker@healthpassport.mw', 'Medical Officer', 'MCM-11820', Position::Doctor);
+        $second = $this->staff($ndirande, RoleName::HealthWorker, 'Alinafe Gondwe', 'healthworker2@healthpassport.mw', 'Registered Nurse', 'NMCM-20417', Position::Nurse);
+        $clerk = $this->staff($ndirande, RoleName::HealthWorker, 'Thandiwe Kachala', 'clerk@healthpassport.mw', 'Records Clerk', null, Position::Clerk);
+        $pharmacist = $this->staff($ndirande, RoleName::HealthWorker, 'Blessings Tembo', 'pharmacist@healthpassport.mw', 'Pharmacist', 'PCM-33119', Position::Pharmacist);
         $this->staff($zomba, RoleName::FacilityAdmin, 'Lucy Nyirenda', 'zomba.admin@healthpassport.mw', 'Hospital Administrator');
-        $this->staff($zomba, RoleName::HealthWorker, 'Dr Samuel Banda', 'zomba.healthworker@healthpassport.mw', 'Physician', 'MCM-09211');
+        $this->staff($zomba, RoleName::HealthWorker, 'Dr Samuel Banda', 'zomba.healthworker@healthpassport.mw', 'Physician', 'MCM-09211', Position::Doctor);
 
-        $this->passports($worker, $second);
+        $this->passports($worker, $second, $clerk, $pharmacist);
 
         // Demonstration passports are left closed, as they would be at the end of a working day.
         PassportAccess::query()->whereNull('closed_at')->update(['closed_at' => now()]);
@@ -77,7 +84,7 @@ class DemoDataSeeder extends Seeder
         ]);
     }
 
-    private function staff(Facility $facility, RoleName $role, string $name, string $email, string $title, ?string $registration = null): User
+    private function staff(Facility $facility, RoleName $role, string $name, string $email, string $title, ?string $registration = null, ?Position $position = null): User
     {
         $user = User::create([
             'name' => $name,
@@ -85,6 +92,7 @@ class DemoDataSeeder extends Seeder
             'phone' => '+265 99'.random_int(1000000, 9999999),
             'job_title' => $title,
             'professional_registration_number' => $registration,
+            'position' => $position,
             'facility_id' => $facility->id,
             'status' => UserStatus::Active,
             'must_change_password' => false,
@@ -94,7 +102,7 @@ class DemoDataSeeder extends Seeder
         return tap($user)->assignRole($role->value);
     }
 
-    private function passports(User $worker, User $second): void
+    private function passports(User $worker, User $second, User $clerk, User $pharmacist): void
     {
         auth()->setUser($worker);
 
@@ -166,6 +174,29 @@ class DemoDataSeeder extends Seeder
             'temperature' => 37.8, 'weight' => 61.0, 'systolic_pressure' => 112, 'diastolic_pressure' => 72, 'pulse_rate' => 90, 'oxygen_saturation' => 96,
         ], [['name' => 'Amoxicillin', 'dosage' => '500 mg', 'frequency' => 'Three times daily', 'duration_days' => 5]]);
 
+        // Staged visits. Each stage is recorded by the worker who works at that
+        // station, and the visit locks once the pharmacist hands over the medicines.
+        $this->at(now()->subDays(1)->setTime(8, 40), fn () => $this->stagedVisit($mary, $clerk, $second, $worker, $pharmacist, [
+            'reason' => 'Cough and chest pain for three days',
+            'symptoms' => 'Dry cough, pain on the right side of the chest, no shortness of breath.',
+            'tests' => [['name' => 'Malaria RDT', 'result' => 'Negative']],
+            'vitals' => ['temperature' => 37.9, 'weight' => 61.0, 'systolic_pressure' => 112, 'diastolic_pressure' => 72, 'pulse_rate' => 88, 'oxygen_saturation' => 97],
+            'diagnosis' => 'Chest infection',
+            'treatment_summary' => 'Rest, fluids and a short antibiotic course. Return if breathing becomes difficult.',
+            'follow_up_on' => now()->addDays(5)->toDateString(),
+            'medications' => [['name' => 'Amoxicillin', 'dosage' => '500 mg', 'frequency' => 'Three times daily', 'duration_days' => 5]],
+        ]));
+
+        // A visit that needed no medicines, so the doctor's consultation completes it.
+        $this->at(now()->subDays(3)->setTime(14, 5), fn () => $this->stagedVisit($esther, $clerk, $second, $worker, null, [
+            'reason' => 'High fever and headache',
+            'symptoms' => 'Fever, headache and joint pains. No rash.',
+            'tests' => [['name' => 'Malaria RDT', 'result' => 'Positive']],
+            'vitals' => ['temperature' => 39.1, 'pulse_rate' => 104, 'oxygen_saturation' => 97],
+            'diagnosis' => 'Malaria, uncomplicated',
+            'treatment_summary' => 'Referred for treatment at the health centre. Advised to sleep under a treated net.',
+        ]));
+
         // Daniel's vaccinations, with the next dose reminder created automatically.
         $this->at(now()->subMonths(3)->addDay()->setTime(9, 0), function () use ($daniel, $second) {
             $this->scan($daniel, $second);
@@ -204,6 +235,44 @@ class DemoDataSeeder extends Seeder
         auth()->setUser($worker);
         $this->scan($patient, $worker);
         $this->encounters->record($patient, $data, $medications, $worker);
+    }
+
+    /**
+     * Records a staged visit: reception, triage and consultation, then, when
+     * medicines were prescribed, handing over at the pharmacy. Each stage is
+     * recorded by the worker who holds that position.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function stagedVisit(Patient $patient, User $clerk, User $nurse, User $doctor, ?User $pharmacist, array $data): Visit
+    {
+        auth()->setUser($clerk);
+        $this->scan($patient, $clerk);
+        $visit = $this->visits->saveStage($patient, new Visit, VisitStageType::Reception, ['reason' => $data['reason']], $clerk);
+
+        auth()->setUser($nurse);
+        $this->scan($patient, $nurse);
+        $this->visits->saveStage($patient, $visit, VisitStageType::Triage, [
+            'symptoms' => $data['symptoms'],
+            'tests' => $data['tests'] ?? [],
+        ] + ($data['vitals'] ?? []), $nurse);
+
+        auth()->setUser($doctor);
+        $this->scan($patient, $doctor);
+        $visit = $this->visits->saveStage($patient, $visit, VisitStageType::Consultation, [
+            'diagnosis' => $data['diagnosis'],
+            'treatment_summary' => $data['treatment_summary'] ?? null,
+            'follow_up_on' => $data['follow_up_on'] ?? null,
+            'medications' => $data['medications'] ?? [],
+        ], $doctor);
+
+        if (! empty($data['medications']) && $pharmacist) {
+            auth()->setUser($pharmacist);
+            $this->scan($patient, $pharmacist);
+            $visit = $this->visits->dispense($visit->refresh(), $visit->medications()->pluck('id')->all(), $pharmacist);
+        }
+
+        return $visit;
     }
 
     private function scan(Patient $patient, User $worker): void

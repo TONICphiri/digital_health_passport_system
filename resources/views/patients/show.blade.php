@@ -6,9 +6,6 @@
             <span class="mono">{{ $patient->passport_number }}</span>
         </x-slot:breadcrumb>
         <x-slot:actions>
-            @can('record', $patient)
-                <a href="{{ route('encounters.create', $patient) }}" class="btn-primary"><x-icon name="stethoscope" class="h-4 w-4" /> Record encounter</a>
-            @endcan
             @can('recordVaccination', $patient)
                 <a href="{{ route('vaccinations.create', $patient) }}" class="btn-secondary"><x-icon name="syringe" class="h-4 w-4" /> Vaccination</a>
             @endcan
@@ -75,9 +72,54 @@
         </div>
 
         <div class="space-y-6 xl:col-span-2">
+            @if ($openVisit || collect($canRecordStage)->contains(true))
+                <section class="panel">
+                    <div class="panel-header">
+                        <h2 class="panel-title">{{ $openVisit ? 'Visit in progress' : 'Start a visit' }}</h2>
+                        @if ($openVisit)
+                            <x-badge :tone="$openVisit->status->tone()">{{ $openVisit->status->label() }}</x-badge>
+                        @endif
+                    </div>
+
+                    @if ($openVisit)
+                        <x-visit-timeline :visit="$openVisit" />
+                    @else
+                        <p class="px-5 py-4 text-sm text-muted">Reception starts the visit. Triage, consultation and dispensing are added at their stations.</p>
+                    @endif
+
+                    <div class="flex flex-wrap gap-2 border-t border-line px-5 py-3">
+                        @foreach (\App\Enums\VisitStageType::cases() as $stage)
+                            @if ($canRecordStage[$stage->value])
+                                <a href="{{ route('visits.stage.create', [$patient, $stage->value]) }}" class="{{ $openVisit && $openVisit->stage($stage) ? 'btn-secondary' : 'btn-primary' }} btn-sm">
+                                    {{ $openVisit && $openVisit->stage($stage) ? 'Change' : 'Record' }} {{ $stage->label() }}
+                                </a>
+                            @endif
+                        @endforeach
+                        @if ($canDispense)
+                            <a href="{{ route('visits.dispense', [$patient, $openVisit]) }}" class="btn-primary btn-sm"><x-icon name="pill" class="h-4 w-4" /> Hand over medicines</a>
+                        @endif
+                    </div>
+                </section>
+            @endif
+
+            @if ($pastVisits->isNotEmpty())
+                <section class="panel">
+                    <div class="panel-header"><h2 class="panel-title">Completed visits</h2></div>
+                    @foreach ($pastVisits as $visit)
+                        <div class="border-b border-line last:border-b-0">
+                            <div class="flex items-center justify-between gap-3 bg-paper px-5 py-2">
+                                <p class="text-sm font-medium">{{ $visit->started_at?->format('j M Y, H:i') ?? 'Unknown date' }}</p>
+                                <x-status :value="$visit->status" />
+                            </div>
+                            <x-visit-timeline :visit="$visit" />
+                        </div>
+                    @endforeach
+                </section>
+            @endif
+
             <x-encounter-list :encounters="$encounters" />
 
-            <x-vaccination-list :vaccinations="$vaccinations" />
+            <x-vaccination-list :vaccinations="$vaccinations" :immunisations="$immunisations" />
 
             <section class="panel">
                 <div class="panel-header"><h2 class="panel-title">Reminders</h2></div>

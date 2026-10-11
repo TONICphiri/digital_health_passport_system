@@ -3,11 +3,14 @@
 namespace App\Services;
 
 use App\Enums\AccessMethod;
-use App\Models\Encounter;
+use App\Enums\VisitStageType;
+use App\Enums\VisitStatus;
 use App\Models\Facility;
 use App\Models\PassportAccess;
 use App\Models\Patient;
 use App\Models\Vaccination;
+use App\Models\Visit;
+use App\Models\VisitStage;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -26,7 +29,7 @@ class FacilityReportService
         $start = $from->copy()->startOfDay();
         $end = $to->copy()->endOfDay();
 
-        $encounters = Encounter::query()->where('facility_id', $facility->id)->whereBetween('recorded_at', [$start, $end]);
+        $visits = Visit::query()->where('facility_id', $facility->id)->whereBetween('started_at', [$start, $end]);
         $accesses = PassportAccess::query()->where('facility_id', $facility->id)->whereBetween('opened_at', [$start, $end]);
 
         $opened = (clone $accesses)->count();
@@ -37,13 +40,18 @@ class FacilityReportService
             'passports_opened' => $opened,
             'opened_by_scan' => $scanned,
             'scan_rate' => $opened > 0 ? round($scanned / $opened * 100) : 0,
-            'encounters' => (clone $encounters)->count(),
+            'visits' => (clone $visits)->count(),
+            'visits_completed' => (clone $visits)->where('status', VisitStatus::Completed)->count(),
             'vaccinations' => Vaccination::query()->where('facility_id', $facility->id)->whereBetween('administered_on', [$start->toDateString(), $end->toDateString()])->count(),
-            'top_diagnoses' => (clone $encounters)->whereNotNull('diagnosis')
-                ->select('diagnosis', DB::raw('COUNT(*) as total'))
-                ->groupBy('diagnosis')->orderByDesc('total')->limit(10)->get(),
-            'daily_encounters' => $this->everyDay($start, $end, (clone $encounters)
-                ->select(DB::raw('DATE(recorded_at) as day'), DB::raw('COUNT(*) as total'))
+            // A diagnosis is the summary the doctor writes during consultation.
+            'top_diagnoses' => VisitStage::query()
+                ->where('type', VisitStageType::Consultation)
+                ->whereNotNull('summary')
+                ->whereHas('visit', fn ($query) => $query->where('facility_id', $facility->id)->whereBetween('started_at', [$start, $end]))
+                ->select('summary as diagnosis', DB::raw('COUNT(*) as total'))
+                ->groupBy('summary')->orderByDesc('total')->limit(10)->get(),
+            'daily_visits' => $this->everyDay($start, $end, (clone $visits)
+                ->select(DB::raw('DATE(started_at) as day'), DB::raw('COUNT(*) as total'))
                 ->groupBy('day')->pluck('total', 'day')),
         ];
     }

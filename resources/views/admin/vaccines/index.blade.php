@@ -9,13 +9,14 @@
         @else
             <div class="overflow-x-auto">
                 <table class="table">
-                    <thead><tr><th>Vaccine</th><th>Protects against</th><th>Recommended age</th><th class="text-right">Doses</th><th class="text-right">Days between doses</th><th class="text-right">Doses given</th><th>Status</th><th></th></tr></thead>
+                    <thead><tr><th>Vaccine</th><th>Protects against</th><th>Recommended age</th><th class="text-right">Age (days)</th><th class="text-right">Doses</th><th class="text-right">Days between doses</th><th class="text-right">Doses given</th><th>Status</th><th></th></tr></thead>
                     <tbody>
                         @foreach ($vaccines as $vaccine)
                             <tr>
                                 <td class="font-medium">{{ $vaccine->name }}</td>
                                 <td>{{ $vaccine->protects_against }}</td>
                                 <td>{{ $vaccine->recommended_age ?? 'Any age' }}</td>
+                                <td class="text-right tabular-nums">{{ $vaccine->recommended_age_days ?? 'Not set' }}</td>
                                 <td class="text-right tabular-nums">{{ $vaccine->total_doses }}</td>
                                 <td class="text-right tabular-nums">{{ $vaccine->days_between_doses ?? 'Not applicable' }}</td>
                                 <td class="text-right tabular-nums">{{ $vaccine->vaccinations_count }}</td>

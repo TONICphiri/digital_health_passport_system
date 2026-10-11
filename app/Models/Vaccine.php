@@ -8,11 +8,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Vaccine extends Model
 {
-    protected $fillable = ['name', 'protects_against', 'total_doses', 'days_between_doses', 'recommended_age', 'is_active'];
+    protected $fillable = ['name', 'protects_against', 'total_doses', 'days_between_doses', 'recommended_age', 'recommended_age_days', 'is_active'];
 
     protected function casts(): array
     {
-        return ['is_active' => 'boolean'];
+        return ['is_active' => 'boolean', 'recommended_age_days' => 'integer'];
     }
 
     public function vaccinations(): HasMany

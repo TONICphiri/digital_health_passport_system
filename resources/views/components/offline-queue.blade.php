@@ -22,9 +22,6 @@
     <form id="encounter-draft" data-draft-kind="encounter" hidden class="space-y-5 p-5">
         <div class="grid gap-4 sm:grid-cols-2">
             <div class="sm:col-span-2"><label class="label" for="d-reason">Reason for the visit</label><input id="d-reason" name="reason" class="input" maxlength="255" required></div>
-            <div class="sm:col-span-2"><label class="label" for="d-diagnosis">Diagnosis</label><input id="d-diagnosis" name="diagnosis" class="input" maxlength="255" required></div>
-            <div class="sm:col-span-2"><label class="label" for="d-treatment">Treatment given</label><textarea id="d-treatment" name="treatment_summary" class="input" rows="3" maxlength="5000"></textarea></div>
-            <div><label class="label" for="d-follow">Follow up date</label><input id="d-follow" name="follow_up_on" type="date" class="input" data-min-days="1"></div>
         </div>
 
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -39,30 +36,6 @@
             ] as $field => [$label, $step])
                 <div><label class="label" for="d-{{ $field }}">{{ $label }}</label><input id="d-{{ $field }}" name="{{ $field }}" type="number" step="{{ $step }}" min="{{ $limits[$field]['min'] }}" max="{{ $limits[$field]['max'] }}" inputmode="decimal" class="input"></div>
             @endforeach
-        </div>
-
-        <div x-data="repeater([], { name: '', dosage: '', frequency: '', duration_days: '' }, {{ $maxMedications }})">
-            <div class="mb-2 flex items-center justify-between">
-                <h3 class="text-sm font-semibold">Medicines</h3>
-                <button type="button" class="btn-secondary btn-sm" @click="add()" :disabled="rows.length >= {{ $maxMedications }}"><x-icon name="plus" class="h-4 w-4" /> Add medicine</button>
-            </div>
-            <template x-for="(row, index) in rows" :key="index">
-                <div class="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1.2fr_0.8fr_auto]">
-                    <div><label class="label" :for="'d-med-name-' + index">Medicine</label><input :id="'d-med-name-' + index" class="input" :name="'medications[' + index + '][name]'" x-model="row.name"></div>
-                    <div><label class="label" :for="'d-med-dose-' + index">Dosage</label><input :id="'d-med-dose-' + index" class="input" :name="'medications[' + index + '][dosage]'" x-model="row.dosage"></div>
-                    <div>
-                        <label class="label" :for="'d-med-freq-' + index">How often</label>
-                        <select :id="'d-med-freq-' + index" class="input" :name="'medications[' + index + '][frequency]'" x-model="row.frequency">
-                            <option value="">Choose</option>
-                            @foreach ($frequencies as $frequency)
-                                <option value="{{ $frequency }}">{{ $frequency }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div><label class="label" :for="'d-med-days-' + index">Days</label><input :id="'d-med-days-' + index" type="number" min="1" max="365" class="input" :name="'medications[' + index + '][duration_days]'" x-model="row.duration_days"></div>
-                    <div class="flex items-end"><button type="button" class="btn-secondary btn-sm" @click="remove(index)" x-show="rows.length > 1" aria-label="Remove medicine"><x-icon name="x" class="h-4 w-4" /></button></div>
-                </div>
-            </template>
         </div>
 
         <div class="flex justify-end"><button type="submit" class="btn-primary">Keep these notes</button></div>

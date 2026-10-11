@@ -29,6 +29,27 @@ return [
     // Most medicines that can be noted in one encounter.
     'max_medications' => 10,
 
+    // Which position may record each stage of a visit. Order is not enforced;
+    // a stage is allowed whenever the worker holds its position and an open
+    // passport. Vitals may be recorded at reception, triage and consultation.
+    'stage_positions' => [
+        'reception' => ['clerk'],
+        'triage' => ['nurse', 'doctor'],
+        'consultation' => ['doctor'],
+        'dispensing' => ['pharmacist'],
+        'vitals' => ['clerk', 'nurse', 'doctor'],
+    ],
+
+    // The vital signs a visit records, and how they are shown.
+    'observation_types' => [
+        'temperature' => ['label' => 'Temperature', 'unit' => '°C'],
+        'weight' => ['label' => 'Weight', 'unit' => 'kg'],
+        'height' => ['label' => 'Height', 'unit' => 'cm'],
+        'bp' => ['label' => 'Blood pressure', 'unit' => 'mmHg'],
+        'pulse' => ['label' => 'Pulse', 'unit' => 'per minute'],
+        'oxygen' => ['label' => 'Oxygen saturation', 'unit' => '%'],
+    ],
+
     // Seconds between checks for new notifications in the browser.
     'notification_poll_seconds' => (int) env('NOTIFICATION_POLL_SECONDS', 60),
 

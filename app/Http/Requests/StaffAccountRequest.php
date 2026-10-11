@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\Position;
 use App\Enums\RoleName;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -29,6 +30,7 @@ class StaffAccountRequest extends FormRequest
             'phone' => ['nullable', 'string', 'max:30'],
             'job_title' => ['nullable', 'string', 'max:100'],
             'professional_registration_number' => ['nullable', 'string', 'max:50'],
+            'position' => [$forFacilityStaff ? 'required' : 'prohibited', Rule::enum(Position::class)],
             'facility_id' => [$forFacilityStaff ? 'prohibited' : 'required', 'exists:facilities,id'],
             'role' => ['prohibited'],
         ];
@@ -38,6 +40,7 @@ class StaffAccountRequest extends FormRequest
     {
         return [
             'facility_id' => 'facility',
+            'position' => 'position',
             'professional_registration_number' => 'professional registration number',
         ];
     }

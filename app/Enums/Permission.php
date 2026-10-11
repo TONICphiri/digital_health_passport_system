@@ -31,6 +31,8 @@ enum Permission: string
     case RecordEncounters = 'encounters.record';
     case RecordVaccinations = 'vaccinations.record';
     case ManageReminders = 'reminders.manage';
+    case ManageVisits = 'visits.manage';
+    case DispenseMedications = 'medications.dispense';
 
     // Passport holder (Patient)
     case UsePatientPortal = 'portal.use';
@@ -54,6 +56,8 @@ enum Permission: string
             self::RecordEncounters => 'Record an encounter in the passport',
             self::RecordVaccinations => 'Record vaccinations',
             self::ManageReminders => 'Set reminders',
+            self::ManageVisits => 'Record the stages of a visit',
+            self::DispenseMedications => 'Mark medicines as handed over',
             self::UsePatientPortal => 'Use the patient portal',
         };
     }

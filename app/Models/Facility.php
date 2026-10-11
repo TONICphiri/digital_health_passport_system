@@ -47,6 +47,11 @@ class Facility extends Model
         return $this->hasMany(Encounter::class);
     }
 
+    public function visits(): HasMany
+    {
+        return $this->hasMany(Visit::class);
+    }
+
     public function patients(): HasMany
     {
         return $this->hasMany(Patient::class, 'registered_facility_id');

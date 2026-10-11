@@ -1,5 +1,5 @@
 import Alpine from 'alpinejs';
-import { removeItem } from './offlineQueue';
+import { clearAll, purgeExpired, removeItem } from './offlineQueue';
 
 /**
  * Notification bell. Asks the server for unread notifications at a fixed
@@ -77,14 +77,18 @@ if (synced) {
     window.history.replaceState(null, '', address.pathname + address.search + address.hash);
 }
 
+// Old scans are dropped when any page loads, so a shared device does not keep them forever.
+purgeExpired();
+
 /**
- * The page kept for offline use is removed when someone signs out, so the next
- * person never sees what the previous one left on a shared device.
+ * The queue and the page kept for offline use are removed when someone signs
+ * out, so the next person never sees what the previous one left behind.
  */
 document.addEventListener('submit', (event) => {
-    if (event.target instanceof HTMLFormElement && event.target.action.endsWith('/logout') && 'caches' in window) {
-        caches.delete('dhp-shell');
-    }
+    if (!(event.target instanceof HTMLFormElement) || !event.target.action.endsWith('/logout')) return;
+
+    clearAll();
+    if ('caches' in window) caches.delete('dhp-shell');
 });
 
 window.Alpine = Alpine;

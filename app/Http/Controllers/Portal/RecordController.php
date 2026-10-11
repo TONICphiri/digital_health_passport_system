@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Portal;
 use App\Enums\ReminderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Patient;
+use App\Services\ImmunisationStatusService;
 use App\Services\QrCodeService;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -14,6 +15,8 @@ use Illuminate\View\View;
  */
 class RecordController extends Controller
 {
+    public function __construct(private readonly ImmunisationStatusService $immunisations) {}
+
     public function index(Request $request): View
     {
         $owner = $this->owner($request);
@@ -23,10 +26,12 @@ class RecordController extends Controller
             'owner' => $owner,
             'patient' => $patient->load(['emergencyContacts', 'registeredFacility']),
             'family' => collect([$owner])->merge($owner->children),
+            'visits' => $patient->visits()->with(['stages.recordedBy', 'stages.editedBy', 'observations.recordedBy', 'medications.prescribedBy', 'medications.dispensedBy'])->latest('started_at')->limit(20)->get(),
             'encounters' => $patient->encounters()->with(['facility', 'recordedBy', 'medications'])->get(),
             'vaccinations' => $patient->vaccinations()->with(['vaccine', 'facility'])->latest('administered_on')->get(),
             'accesses' => $patient->accesses()->with(['user', 'facility'])->limit(5)->get(),
             'reminders' => $patient->reminders()->where('status', ReminderStatus::Active)->orderBy('due_on')->get(),
+            'immunisations' => $this->immunisations->allFor($patient),
         ]);
     }
 

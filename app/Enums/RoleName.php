@@ -83,6 +83,8 @@ enum RoleName: string
                 Permission::RecordEncounters,
                 Permission::RecordVaccinations,
                 Permission::ManageReminders,
+                Permission::ManageVisits,
+                Permission::DispenseMedications,
             ],
             self::Patient => [
                 Permission::UsePatientPortal,

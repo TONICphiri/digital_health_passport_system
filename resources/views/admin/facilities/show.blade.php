@@ -10,9 +10,10 @@
         </x-slot:actions>
     </x-page-header>
 
-    <div class="grid gap-4 sm:grid-cols-3">
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <x-stat label="Patients registered here" :value="$facility->patients_count" icon="heart" />
-        <x-stat label="Encounters recorded" :value="$facility->encounters_count" icon="stethoscope" />
+        <x-stat label="Visits recorded" :value="$facility->visits_count" icon="stethoscope" />
+        <x-stat label="Encounters recorded" :value="$facility->encounters_count" icon="clipboard" />
         <x-stat label="Staff accounts" :value="$facility->users_count" icon="users" />
     </div>
 

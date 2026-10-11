@@ -6,6 +6,12 @@
 const KEY = 'dhp.offline-queue';
 const MAX_ITEMS = 10;
 
+/** A card alone is dropped after a few minutes. Notes are kept for hours. */
+const BARE_CARD_MS = 5 * 60 * 1000;
+
+/** Matches the scan page defaults, used when no page values are at hand. */
+const DEFAULT_LIMITS = { openMinutes: 30, draftHours: 24 };
+
 const read = (storage) => {
     try {
         const items = JSON.parse(storage.getItem(KEY) ?? '[]');
@@ -27,22 +33,38 @@ const write = (items, storage) => {
 
 export const hasDraft = (item) => Boolean(item.drafts && Object.keys(item.drafts).length);
 
-/** A card alone is kept for a few minutes. Notes are kept for hours. */
-export const lifetime = (item, limits) => (hasDraft(item) ? limits.draftHours * 3600000 : limits.openMinutes * 60000);
+/** A card alone is kept only a few minutes. Notes are kept for hours. */
+export const lifetime = (item, limits) => (hasDraft(item) ? (limits ?? DEFAULT_LIMITS).draftHours * 3600000 : BARE_CARD_MS);
 
 export const newId = () => (globalThis.crypto?.randomUUID?.() ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = Math.floor(Math.random() * 16);
     return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
 }));
 
-/** Removes expired items for everyone, then returns the items of this worker. */
-export function listFor(userId, limits, now = Date.now(), storage = globalThis.localStorage) {
+/** Removes expired items for everyone and returns the ones that remain. */
+export function purgeExpired(now = Date.now(), limits = DEFAULT_LIMITS, storage = globalThis.localStorage) {
     const all = read(storage);
     const alive = all.filter((item) => now - item.savedAt <= lifetime(item, limits));
 
     if (alive.length !== all.length) write(alive, storage);
 
-    return alive.filter((item) => item.userId === userId);
+    return alive;
+}
+
+/** Removes everything a worker left in this queue, for example when signing out. */
+export function clearAll(storage = globalThis.localStorage) {
+    try {
+        storage.removeItem(KEY);
+
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/** Removes expired items for everyone, then returns the items of this worker. */
+export function listFor(userId, limits, now = Date.now(), storage = globalThis.localStorage) {
+    return purgeExpired(now, limits, storage).filter((item) => item.userId === userId);
 }
 
 export function addItem(code, userId, now = Date.now(), storage = globalThis.localStorage) {

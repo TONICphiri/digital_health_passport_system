@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\Position;
 use App\Enums\RoleName;
 use App\Enums\UserStatus;
 use Illuminate\Database\Eloquent\Builder;
@@ -21,6 +22,7 @@ class User extends Authenticatable
         'phone',
         'job_title',
         'professional_registration_number',
+        'position',
         'facility_id',
         'patient_id',
         'status',
@@ -38,6 +40,7 @@ class User extends Authenticatable
     {
         return [
             'status' => UserStatus::class,
+            'position' => Position::class,
             'must_change_password' => 'boolean',
             'notification_preferences' => 'array',
             'last_login_at' => 'datetime',
@@ -73,6 +76,21 @@ class User extends Authenticatable
     public function isRole(RoleName $role): bool
     {
         return $this->role() === $role;
+    }
+
+    public function positionLabel(): string
+    {
+        return $this->position?->label() ?? 'No position';
+    }
+
+    /**
+     * True when this worker holds one of the given positions.
+     *
+     * @param  array<int, string>  $positions
+     */
+    public function hasPosition(array $positions): bool
+    {
+        return $this->position !== null && in_array($this->position->value, $positions, true);
     }
 
     public function isActive(): bool

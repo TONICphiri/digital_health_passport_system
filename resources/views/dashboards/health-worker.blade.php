@@ -8,7 +8,7 @@
 
     <div class="grid gap-4 sm:grid-cols-3">
         <x-stat label="Passports opened today" :value="number_format($stats['openedToday'])" icon="qr" />
-        <x-stat label="Encounters recorded today" :value="number_format($stats['encountersToday'])" icon="stethoscope" />
+        <x-stat label="Visits recorded today" :value="number_format($stats['visitsToday'])" icon="stethoscope" />
         <x-stat label="Passports issued today" :value="number_format($stats['issuedToday'])" icon="user-plus" />
     </div>
 
@@ -26,17 +26,17 @@
         </section>
 
         <section class="panel">
-            <div class="panel-header"><h2 class="panel-title">My recent encounters</h2></div>
-            @forelse ($recentEncounters as $encounter)
+            <div class="panel-header"><h2 class="panel-title">My recent visits</h2></div>
+            @forelse ($recentVisits as $visit)
                 <div class="flex items-center justify-between gap-3 border-b border-line px-5 py-3 text-sm last:border-b-0">
                     <div>
-                        <p class="font-medium">{{ $encounter->patient->full_name }}</p>
-                        <p class="text-[13px] text-muted">{{ $encounter->diagnosis ?: $encounter->reason }}</p>
+                        <p class="font-medium">{{ $visit->patient->full_name }}</p>
+                        <p class="text-[13px] text-muted">{{ $visit->reason ?: $visit->status->label() }}</p>
                     </div>
-                    <span class="text-[13px] text-muted">{{ $encounter->recorded_at->diffForHumans() }}</span>
+                    <span class="text-[13px] text-muted">{{ $visit->started_at->diffForHumans() }}</span>
                 </div>
             @empty
-                <x-empty title="No encounters yet" icon="stethoscope" />
+                <x-empty title="No visits yet" icon="stethoscope" />
             @endforelse
         </section>
     </div>

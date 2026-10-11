@@ -13,7 +13,9 @@ exists in the Laravel code (`database/migrations`, `app/Enums`, `routes/web.php`
 carried on a card with a QR code, and is opened by a health worker only by
 scanning that card. It is not a hospital management system, an electronic
 medical record or an electronic health record. It has no appointments, wards,
-laboratory, pharmacy, billing or announcements.
+laboratory service, pharmacy stock, billing or announcements. Tests are recorded
+as a test name and a result only. Dispensing only marks prescribed medicines as
+handed over.
 
 ---
 
@@ -30,6 +32,16 @@ Two other parties are **not** roles: the **Verifier** (any person holding a
 printed vaccination certificate, no account) and the **Messaging provider**
 (an external email / SMS service).
 
+### Positions (health workers only)
+
+The four **roles** above are fixed. A health worker additionally has one
+**position** — `clerk` (Front desk), `nurse`, `doctor` or `pharmacist` — that
+decides which stage of a visit they may record. A position is not a role and
+never changes the four-role access model; it is set by the Facility
+Administrator when the worker's account is created. A health worker without a
+position can still issue passports, vaccinate and set reminders, but cannot
+record a visit.
+
 ---
 
 ## 2. System Modules
@@ -41,7 +53,7 @@ printed vaccination certificate, no account) and the **Messaging provider**
 | M3 | Facility Staff and Reports | Create / edit / deactivate health workers, reset passwords, facility profile, facility reports | Facility Administrator |
 | M4 | Patient Registration and Card | Register a holder, passport number + QR token, emergency contacts, child → mother link, printable passport card, portal account | Health Worker |
 | M5 | Scan-first Passport Access | Open a passport by QR scan (or passport number / identity check), time-limited access window, access record, close passport | Health Worker |
-| M6 | Visit and Vaccination Records | Visits (reason, vitals, diagnosis, treatment, medicines, follow-up), vaccinations with next-dose date | Health Worker |
+| M6 | Staged Visits and Vaccination Records | A visit in four stages — reception, triage, consultation and dispensing — each recorded by the position that owns it: reason and initial readings; vital signs and test results (a test name and a result only); diagnosis and up to 10 prescribed medicines; hand-over of the prescribed medicines; vaccinations with next-dose date | Health Worker |
 | M7 | Reminders and Notifications | Follow-up and next-dose reminders; portal, email and SMS channels; holder preferences and SMS consent; delivery status | System, Messaging provider |
 | M8 | Patient Portal | Own passport, access history, printable summary, vaccination certificate, reminder preferences | Patient |
 | M9 | Certificate Verification | Vaccination certificate with signed QR link; public verification showing minimal data | Verifier (public) |
@@ -49,7 +61,7 @@ printed vaccination certificate, no account) and the **Messaging provider**
 | M11 | Offline Support | Scan page available without a connection; visit and vaccination notes typed offline, kept on the device, synchronised to the opened passport | Health Worker |
 
 Services: `PatientRegistrationService`, `PassportAccessService`, `StaffAccountService`,
-`ReminderService`, `QrCodeService`, `SmsManager` (Twilio / Africa's Talking / log driver),
+`VisitService`, `ReminderService`, `QrCodeService`, `SmsManager` (Twilio / Africa's Talking / log driver),
 `BackupService`, `SettingService`, `AuditLogger`.
 
 ---
@@ -86,13 +98,16 @@ Services: `PatientRegistrationService`, `PassportAccessService`, `StaffAccountSe
 | FR-14 | Administrators shall not be able to open a passport. |
 | FR-15 | The system shall limit passport opening to 20 attempts per minute per user. |
 
-### M6 — Visit and Vaccination Records
+### M6 — Staged Visits and Vaccination Records
 
 | ID | Requirement |
 |----|-------------|
-| FR-16 | A Health Worker with an open passport shall record a visit: reason, vital signs within the configured limits, diagnosis, treatment summary, up to 10 medicines and an optional follow-up date. |
+| FR-16 | A Health Worker with an open passport shall record the stage of a visit that their **position** allows: a **clerk** records reception (the reason and any initial readings); a **nurse** or **doctor** records triage (symptoms, vital signs within the configured limits, and tests as a test name and a result only); the **doctor** records consultation (diagnosis, treatment summary, up to 10 prescribed medicines and an optional follow-up date); the **pharmacist** records dispensing, marking the prescribed medicines as handed over. Stage order is not enforced; each stage is allowed whenever the worker holds its position and an open passport. |
+| FR-16a | The system shall keep one record for each stage, credited to the worker who recorded it and their position. A change keeps the first recorder and records who edited it and when. |
+| FR-16b | The system shall keep every vital-sign reading and show the newest value of each type; a later reading equal to the newest is ignored. |
+| FR-16c | The visit shall be completed and locked when the pharmacist has marked every prescribed medicine as handed over; a consultation with no prescribed medicines shall complete the visit at once. A locked visit cannot be changed. |
 | FR-17 | A Health Worker with an open passport shall record a vaccination (vaccine, dose number, date, batch number); the system shall calculate the next dose date from the vaccine rules and shall prevent the same dose being recorded twice. |
-| FR-18 | The system shall show the visit history and vaccination history of an open passport in one place. |
+| FR-18 | The system shall show the visit history (with its stages and who recorded each) and vaccination history of an open passport in one place. |
 
 ### M7 — Reminders and Notifications
 
@@ -140,7 +155,9 @@ Services: `PatientRegistrationService`, `PassportAccessService`, `StaffAccountSe
 | Open a passport by scan (`passports.open`) | | | ✓ | |
 | Register patients, issue card (`patients.register`) | | | ✓ | |
 | Edit personal details, emergency contacts (`patients.edit-demographics`) | | | ✓ | |
-| Record visits (`encounters.record`) | | | ✓ | |
+| Record an encounter (`encounters.record`, legacy data) | | | ✓ | |
+| Record the stages of a visit (`visits.manage`) | | | ✓ | |
+| Mark medicines as handed over (`medications.dispense`) | | | ✓ | |
 | Record vaccinations (`vaccinations.record`) | | | ✓ | |
 | Set reminders (`reminders.manage`) | | | ✓ | |
 | Use the patient portal (`portal.use`) | | | | ✓ |
@@ -156,7 +173,7 @@ The Verifier needs no permission: the verification page is public and protected 
 | Security | Hashed passwords; CSRF protection; Blade escaping against XSS; Eloquent against SQL injection; server-side policies on every passport request; login (5/min) and passport-open (20/min) rate limits; signed URLs for certificates; backups encrypted with `APP_KEY`; no secrets in code (`.env`) |
 | Privacy | A passport is read only after a scan and while the access window is open; the holder sees every opening; SMS carries no health details and needs consent; a verifier sees minimal data |
 | Performance | Scan, passport opening and history pages respond within a few seconds on a normal facility connection; lists are paged (15 per page) |
-| Reliability | Database transactions for multi-step saves; daily backups with retention; failed reminder deliveries and failed backups are recorded and reported; test suite (PHPUnit, 45 tests) |
+| Reliability | Database transactions for multi-step saves; daily backups with retention; failed reminder deliveries and failed backups are recorded and reported; test suite (PHPUnit, 64 tests) |
 | Availability | The scan page and visit notes work without a connection and synchronise later (service worker + device queue) |
 | Usability | Plain wording, role-appropriate menus, errors beside the field, mobile-first layout that works on phone, tablet and desktop |
 | Data integrity | Unique passport number, QR token, National ID and dose per holder; foreign keys; validation of vital-sign limits |
@@ -182,6 +199,15 @@ erDiagram
     FACILITIES ||--o{ ENCOUNTERS : "hosts"
     USERS ||--o{ ENCOUNTERS : "records"
     ENCOUNTERS ||--o{ ENCOUNTER_MEDICATIONS : "prescribes"
+    PATIENTS ||--o{ VISITS : "has"
+    FACILITIES ||--o{ VISITS : "hosts"
+    USERS ||--o{ VISITS : "starts"
+    VISITS ||--o{ VISIT_STAGES : "is split into"
+    VISITS ||--o{ VISIT_OBSERVATIONS : "records"
+    VISITS ||--o{ VISIT_MEDICATIONS : "prescribes"
+    USERS ||--o{ VISIT_STAGES : "records"
+    USERS ||--o{ VISIT_OBSERVATIONS : "records"
+    USERS ||--o{ VISIT_MEDICATIONS : "dispenses"
     PATIENTS ||--o{ VACCINATIONS : "receives"
     VACCINES ||--o{ VACCINATIONS : "defines"
     FACILITIES ||--o{ VACCINATIONS : "gives"
@@ -203,12 +229,16 @@ Data dictionary (main columns):
 
 - `districts(id, name, region)`
 - `facilities(id, name, code, type, ownership, district_id, physical_address, phone, email, status)`
-- `users(id, name, email, phone, job_title, professional_registration_number, facility_id, patient_id, status, must_change_password, last_login_at, password, notification_preferences)`
+- `users(id, name, email, phone, job_title, professional_registration_number, position, facility_id, patient_id, status, must_change_password, last_login_at, password, notification_preferences)`
 - `roles`, `permissions`, `model_has_roles`, `model_has_permissions`, `role_has_permissions` (spatie/laravel-permission)
 - `patients(id, passport_number, qr_token, national_id, first_name, middle_name, last_name, date_of_birth, sex, phone, email, sms_consent, district_id, traditional_authority, village, physical_address, occupation, blood_group, allergies, chronic_conditions, disabilities, health_notes, mother_id, separated_from_mother_at, registered_facility_id, registered_by, status)`
 - `emergency_contacts(id, patient_id, full_name, relationship, phone, physical_address, is_primary)`
 - `encounters(id, patient_id, facility_id, recorded_by, reason, diagnosis, treatment_summary, follow_up_on, temperature, weight, height, systolic_pressure, diastolic_pressure, pulse_rate, oxygen_saturation, recorded_at)`
 - `encounter_medications(id, encounter_id, name, dosage, frequency, duration_days)`
+- `visits(id, patient_id, facility_id, reason, status, follow_up_on, started_by, started_at, completed_by, completed_at, locked_at)`
+- `visit_stages(id, visit_id, type, recorded_by, recorded_as_position, summary, payload, recorded_at, edited_by, edited_at)`
+- `visit_observations(id, visit_id, type, value, recorded_by, recorded_as_position, recorded_at)`
+- `visit_medications(id, visit_id, name, dosage, frequency, duration_days, prescribed_by, prescribed_at, dispensed, dispensed_by, dispensed_at)`
 - `vaccines(id, name, protects_against, total_doses, days_between_doses, recommended_age, is_active)`
 - `vaccinations(id, patient_id, vaccine_id, facility_id, administered_by, dose_number, administered_on, batch_number, next_dose_due_on, notes)`
 - `passport_accesses(id, patient_id, user_id, facility_id, method, opened_at, expires_at, closed_at)`
@@ -220,7 +250,7 @@ Data dictionary (main columns):
 - `settings(id, key, value, label, group, input_type, help_text)`
 - Framework tables: `sessions`, `password_reset_tokens`, `cache`, `cache_locks`, `jobs`, `job_batches`, `failed_jobs`
 
-Relationships: one District → many Facilities and Patients; one Facility → many Users, Encounters, Vaccinations and Passport accesses; one Patient → many Emergency contacts, Encounters, Vaccinations, Passport accesses and Reminders; a Patient may be the child of another Patient (`mother_id`); one Encounter → many Medications; one Vaccine → many Vaccinations; one Reminder → many Deliveries; one User → many Audit entries; a Patient has at most one portal User (`users.patient_id` is unique).
+Relationships: one District → many Facilities and Patients; one Facility → many Users, Encounters, Visits, Vaccinations and Passport accesses; one Patient → many Emergency contacts, Encounters, Visits, Vaccinations, Passport accesses and Reminders; a Patient may be the child of another Patient (`mother_id`); one Encounter → many Medications; one Visit → many Stages, Observations and Medications (`visit_stages`, `visit_observations`, `visit_medications`); one Vaccine → many Vaccinations; one Reminder → many Deliveries; one User → many Audit entries; a Patient has at most one portal User (`users.patient_id` is unique).
 
 ---
 
@@ -237,7 +267,7 @@ flowchart LR
     MP["Messaging provider"]
     PAT -->|"login, QR card request, reminder preferences, SMS consent"| S
     S -->|"passport, access history, summary, certificate, notifications"| PAT
-    HW -->|"login, holder details, scanned card, visit and vaccination details"| S
+    HW -->|"login, holder details, scanned card, visit stage and vaccination details"| S
     S -->|"opened passport, confirmations, passport card, reminder status"| HW
     FA -->|"login, health worker details, report request"| S
     S -->|"facility reports, health worker list, activity log"| FA
@@ -252,7 +282,7 @@ flowchart LR
 | Flow | Description |
 |------|-------------|
 | Patient ↔ System | Sign-in, reminder preferences and SMS consent, requests for summary / certificate / card; passport, access history, certificate, notifications |
-| Health Worker ↔ System | Sign-in, registration details, scanned card, visit and vaccination details; opened passport, confirmations, passport card, reminder delivery status |
+| Health Worker ↔ System | Sign-in, registration details, scanned card, visit stage and vaccination details; opened passport, confirmations, passport card, reminder delivery status |
 | Facility Administrator ↔ System | Sign-in, health worker accounts, report requests; reports, activity log |
 | System Administrator ↔ System | Facilities, facility administrators, vaccine list, settings, backup request; system health, activity log, backup notice and file |
 | Verifier ↔ System | Certificate QR code; validity and minimal identity |
@@ -274,7 +304,7 @@ flowchart LR
     P1("1.0 Manage accounts and sign-in")
     P2("2.0 Register patient and issue card")
     P3("3.0 Open passport (scan check)")
-    P4("4.0 Record visit and vaccination")
+    P4("4.0 Record visit stages and vaccination")
     P5("5.0 Send reminders")
     P6("6.0 Serve patient portal")
     P7("7.0 Verify certificate")
@@ -283,7 +313,7 @@ flowchart LR
     D1[("D1 Users and roles")]
     D2[("D2 Passport holders")]
     D3[("D3 Passport access log")]
-    D4[("D4 Visits and vaccinations")]
+    D4[("D4 Visits, stages, medicines and vaccinations")]
     D5[("D5 Reminders and deliveries")]
     D6[("D6 Facilities, vaccines, settings")]
     D7[("D7 Activity log and backups")]
@@ -299,11 +329,11 @@ flowchart LR
     D2 -->|holder match| P3
     P3 -->|access record| D3
     P3 -->|audit entries| D7
-    HW -->|"visit, vaccination details"| P4
+    HW -->|"visit stage, vaccination details"| P4
     P4 -->|confirmation| HW
     D3 -->|open check| P4
     D6 -->|vaccine list| P4
-    P4 -->|"visits, doses"| D4
+    P4 -->|"stages, medicines, doses"| D4
     P4 -->|"follow-up, next dose reminders"| D5
     D5 -->|due reminders| P5
     P5 -->|delivery status| D5
@@ -329,7 +359,7 @@ flowchart LR
 | 1.0 Manage accounts and sign-in | Email + password, account details of staff / facility administrators, password changes | Session and role dashboard, accounts, audit entries | D1, D7 |
 | 2.0 Register patient and issue card | Holder details, emergency contacts, mother link | Holder with passport number and QR token, printable card, portal account | D2 |
 | 3.0 Open passport (scan check) | Scanned card (or passport number + identity check) | Opened passport for a limited time, access record | D2, D3, D7 |
-| 4.0 Record visit and vaccination | Visit and vaccination details (also synchronised from offline notes) | Saved visit / dose, next-dose date, reminders | D3 (open check), D4, D5, D6 |
+| 4.0 Record visit stages and vaccination | Visit stage and vaccination details (also synchronised from offline notes) | Saved stages, medicines, dose and next-dose date, reminders | D3 (open check), D4, D5, D6 |
 | 5.0 Send reminders | Due reminders, holder preferences and consent | Portal notification, email / SMS, delivery status | D5 |
 | 6.0 Serve patient portal | Holder requests, preferences, SMS consent | Own passport, access history, summary, certificate | D2, D3, D4, D5 |
 | 7.0 Verify certificate | Certificate QR code (signed link) | Validity and minimal identity | D4 |
@@ -341,7 +371,8 @@ flowchart LR
 
 Actors: **Patient**, **Health Worker**, **Facility Administrator**,
 **System Administrator**, **Verifier** (public, no account) and the
-**Messaging provider** (external system).
+**Messaging provider** (external system). A Health Worker's **position**
+(clerk, nurse, doctor, pharmacist) decides which stage of a visit they record.
 
 ```mermaid
 flowchart LR
@@ -356,7 +387,7 @@ flowchart LR
         UC1((Sign in and change password))
         UC2((Register patient and issue card))
         UC3((Open passport by scanning card))
-        UC4((Record visit))
+        UC4((Record a visit stage))
         UC5((Record vaccination))
         UC6((View own passport))
         UC7((View access history))
@@ -400,7 +431,7 @@ Use-case descriptions:
 | UC1 | Sign in and change password | Patient, Health Worker, Facility Admin, System Admin | Active account | Enter email and password → system checks hash and active status → forced new password on first sign-in → role dashboard | Session started; sign-in logged; failures limited to 5/min |
 | UC2 | Register patient and issue card | Health Worker | Signed in, belongs to a facility | Enter identity, contact, emergency contacts (and mother for a child) → duplicate National ID check → system creates holder, passport number, QR token and portal account → show card | Holder exists; card printable; registration logged |
 | UC3 | Open passport by scanning card | Health Worker | Signed in; card present | Scan QR (or passport number + identity check) → system confirms an active holder → opens passport for the set minutes → writes access record | Passport open for this worker only until it expires or is closed |
-| UC4 | Record visit | Health Worker | Passport open (UC3) | Enter reason, vitals, diagnosis, treatment, medicines, follow-up date → system saves | Visit in history; follow-up reminder created |
+| UC4 | Record a visit stage | Health Worker (with the matching position) | Passport open (UC3) | Record the stage the worker's position allows — reception (reason, initial readings), triage (symptoms, vitals, test results), consultation (diagnosis, treatment, prescribed medicines, follow-up) or dispensing (mark medicines handed over) → system saves it | Stage stored and credited to the recorder; doctor sets the visit to close when medicines remain, and the pharmacist's hand-over completes and locks the visit |
 | UC5 | Record vaccination | Health Worker | Passport open (UC3) | Choose vaccine, dose, date, batch → system saves and calculates next dose | Dose saved; next-dose reminder created |
 | UC6 | View own passport | Patient | Signed in to portal | Open My passport | Read-only view of own passport |
 | UC7 | View access history | Patient | Signed in to portal | Open Access history | List of who opened the passport, where, how and when |
@@ -462,6 +493,7 @@ CREATE TABLE users (
   phone VARCHAR(30) NULL,
   job_title VARCHAR(100) NULL,
   professional_registration_number VARCHAR(50) NULL,
+  position VARCHAR(20) NULL,
   facility_id BIGINT UNSIGNED NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'active',
   must_change_password TINYINT(1) NOT NULL DEFAULT 1,
@@ -596,6 +628,100 @@ CREATE TABLE encounter_medications (
   updated_at TIMESTAMP NULL DEFAULT NULL,
   CONSTRAINT fk_em_encounter FOREIGN KEY (encounter_id)
     REFERENCES encounters (id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- One staged visit: started at reception, locked once every prescribed
+-- medicine has been handed over.
+CREATE TABLE visits (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  patient_id BIGINT UNSIGNED NOT NULL,
+  facility_id BIGINT UNSIGNED NOT NULL,
+  reason VARCHAR(255) NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'in_progress',   -- in_progress | awaiting_dispense | completed
+  follow_up_on DATE NULL,
+  started_by BIGINT UNSIGNED NULL,
+  started_at DATETIME NOT NULL,
+  completed_by BIGINT UNSIGNED NULL,
+  completed_at DATETIME NULL,
+  locked_at DATETIME NULL,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  updated_at TIMESTAMP NULL DEFAULT NULL,
+  KEY idx_visits_patient (patient_id, started_at),
+  KEY idx_visits_facility (facility_id, started_at),
+  KEY idx_visits_status (status),
+  CONSTRAINT fk_visits_patient FOREIGN KEY (patient_id)
+    REFERENCES patients (id) ON DELETE CASCADE,
+  CONSTRAINT fk_visits_facility FOREIGN KEY (facility_id)
+    REFERENCES facilities (id) ON DELETE RESTRICT,
+  CONSTRAINT fk_visits_started_by FOREIGN KEY (started_by)
+    REFERENCES users (id) ON DELETE SET NULL,
+  CONSTRAINT fk_visits_completed_by FOREIGN KEY (completed_by)
+    REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- One row per stage. The first recorder is kept; an edit records the editor.
+CREATE TABLE visit_stages (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  visit_id BIGINT UNSIGNED NOT NULL,
+  type VARCHAR(20) NOT NULL,           -- reception | triage | consultation | dispensing
+  recorded_by BIGINT UNSIGNED NULL,
+  recorded_as_position VARCHAR(20) NULL,
+  summary TEXT NULL,
+  payload JSON NULL,
+  recorded_at DATETIME NOT NULL,
+  edited_by BIGINT UNSIGNED NULL,
+  edited_at DATETIME NULL,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  updated_at TIMESTAMP NULL DEFAULT NULL,
+  UNIQUE KEY uq_stage_visit_type (visit_id, type),
+  CONSTRAINT fk_stage_visit FOREIGN KEY (visit_id)
+    REFERENCES visits (id) ON DELETE CASCADE,
+  CONSTRAINT fk_stage_recorded_by FOREIGN KEY (recorded_by)
+    REFERENCES users (id) ON DELETE SET NULL,
+  CONSTRAINT fk_stage_edited_by FOREIGN KEY (edited_by)
+    REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- Vital signs. Every reading is kept; the newest value of each type is shown.
+CREATE TABLE visit_observations (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  visit_id BIGINT UNSIGNED NOT NULL,
+  type VARCHAR(20) NOT NULL,           -- temperature | weight | height | bp | pulse | oxygen
+  value VARCHAR(30) NOT NULL,
+  recorded_by BIGINT UNSIGNED NULL,
+  recorded_as_position VARCHAR(20) NULL,
+  recorded_at DATETIME NOT NULL,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  updated_at TIMESTAMP NULL DEFAULT NULL,
+  KEY idx_obs_visit_type (visit_id, type, recorded_at),
+  CONSTRAINT fk_obs_visit FOREIGN KEY (visit_id)
+    REFERENCES visits (id) ON DELETE CASCADE,
+  CONSTRAINT fk_obs_recorded_by FOREIGN KEY (recorded_by)
+    REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+-- A prescribed medicine, marked handed over by the pharmacist. The system
+-- does not stock or dispense anything else.
+CREATE TABLE visit_medications (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  visit_id BIGINT UNSIGNED NOT NULL,
+  name VARCHAR(150) NOT NULL,
+  dosage VARCHAR(100) NOT NULL,
+  frequency VARCHAR(100) NOT NULL,
+  duration_days SMALLINT UNSIGNED NULL,
+  prescribed_by BIGINT UNSIGNED NULL,
+  prescribed_at DATETIME NULL,
+  dispensed TINYINT(1) NOT NULL DEFAULT 0,
+  dispensed_by BIGINT UNSIGNED NULL,
+  dispensed_at DATETIME NULL,
+  created_at TIMESTAMP NULL DEFAULT NULL,
+  updated_at TIMESTAMP NULL DEFAULT NULL,
+  CONSTRAINT fk_vm_visit FOREIGN KEY (visit_id)
+    REFERENCES visits (id) ON DELETE CASCADE,
+  CONSTRAINT fk_vm_prescribed_by FOREIGN KEY (prescribed_by)
+    REFERENCES users (id) ON DELETE SET NULL,
+  CONSTRAINT fk_vm_dispensed_by FOREIGN KEY (dispensed_by)
+    REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 -- Every opening of a passport. Data can be read only while one is open.

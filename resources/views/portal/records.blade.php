@@ -22,8 +22,23 @@
 
     <div class="grid items-start gap-6 xl:grid-cols-3">
         <div class="space-y-6 xl:col-span-2">
+            @if ($visits->isNotEmpty())
+                <section class="panel">
+                    <div class="panel-header"><h2 class="panel-title">Visits</h2></div>
+                    @foreach ($visits as $visit)
+                        <div class="border-b border-line last:border-b-0">
+                            <div class="flex items-center justify-between gap-3 bg-paper px-5 py-2">
+                                <p class="text-sm font-medium">{{ $visit->started_at?->format('j M Y, H:i') ?? 'Unknown date' }}</p>
+                                <x-status :value="$visit->status" />
+                            </div>
+                            <x-visit-timeline :visit="$visit" />
+                        </div>
+                    @endforeach
+                </section>
+            @endif
+
             <x-encounter-list :encounters="$encounters" />
-            <x-vaccination-list :vaccinations="$vaccinations" />
+            <x-vaccination-list :vaccinations="$vaccinations" :immunisations="$immunisations" />
         </div>
 
         <aside class="space-y-6">

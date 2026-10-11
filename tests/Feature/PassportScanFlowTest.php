@@ -3,11 +3,12 @@
 namespace Tests\Feature;
 
 use App\Enums\AccessMethod;
-use App\Models\Encounter;
+use App\Enums\VisitStageType;
 use App\Models\PassportAccess;
 use App\Models\Patient;
 use App\Models\Reminder;
 use App\Models\User;
+use App\Models\Visit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -97,24 +98,58 @@ class PassportScanFlowTest extends TestCase
         $this->get(route('patients.show', $patient))->assertForbidden();
     }
 
-    public function test_an_encounter_can_only_be_recorded_in_an_open_passport(): void
+    public function test_a_visit_stage_can_only_be_recorded_in_an_open_passport(): void
     {
         $patient = $this->patient();
         $payload = [
-            'reason' => 'Cough', 'diagnosis' => 'Chest infection', 'treatment_summary' => 'Rest',
+            'diagnosis' => 'Chest infection', 'treatment_summary' => 'Rest',
             'follow_up_on' => now()->addDays(7)->toDateString(),
             'medications' => [['name' => 'Amoxicillin', 'dosage' => '500 mg', 'frequency' => 'Three times daily', 'duration_days' => 5]],
         ];
 
-        $this->actingAs($this->worker())->post(route('encounters.store', $patient), $payload)->assertForbidden();
-        $this->assertDatabaseMissing('encounters', ['reason' => 'Cough']);
+        $this->actingAs($this->worker())->post(route('visits.stage.store', [$patient, 'consultation']), $payload)->assertForbidden();
+        $this->assertDatabaseMissing('visits', ['patient_id' => $patient->id]);
 
         $this->post(route('patients.open'), ['code' => $this->scanned($patient)]);
-        $this->post(route('encounters.store', $patient), $payload)->assertRedirect(route('patients.show', $patient));
+        $this->post(route('visits.stage.store', [$patient, 'consultation']), $payload)->assertRedirect(route('patients.show', $patient));
 
-        $encounter = Encounter::query()->where('reason', 'Cough')->firstOrFail();
-        $this->assertSame('Amoxicillin', $encounter->medications->first()->name);
+        $visit = Visit::query()->where('patient_id', $patient->id)->firstOrFail();
+        $this->assertSame('Amoxicillin', $visit->medications->first()->name);
+        $this->assertSame(VisitStageType::Consultation, $visit->stage(VisitStageType::Consultation)->type);
         $this->assertTrue(Reminder::query()->where('patient_id', $patient->id)->where('title', 'Follow up visit')->exists());
+    }
+
+    public function test_a_worker_can_only_record_the_stage_of_their_position(): void
+    {
+        $patient = $this->patient();
+
+        // The demonstration doctor may not record the reception stage.
+        $this->actingAs($this->worker())->post(route('patients.open'), ['code' => $this->scanned($patient)]);
+        $this->post(route('visits.stage.store', [$patient, 'reception']), ['reason' => 'Cough'])->assertForbidden();
+        $this->assertDatabaseMissing('visits', ['patient_id' => $patient->id]);
+    }
+
+    public function test_each_worker_needs_their_own_open_passport_and_their_stage_is_credited(): void
+    {
+        $patient = $this->patient();
+        $clerk = User::query()->where('email', 'clerk@healthpassport.mw')->firstOrFail();
+        $nurse = User::query()->where('email', 'healthworker2@healthpassport.mw')->firstOrFail();
+
+        $this->actingAs($clerk)->post(route('patients.open'), ['code' => $this->scanned($patient)]);
+        $this->post(route('visits.stage.store', [$patient, 'reception']), ['reason' => 'Cough', 'temperature' => 37.2])
+            ->assertRedirect(route('patients.show', $patient));
+
+        // The clerk's open passport does not let the nurse record anything.
+        $this->actingAs($nurse)->get(route('patients.show', $patient))->assertForbidden();
+
+        $this->post(route('patients.open'), ['code' => $this->scanned($patient)]);
+        $this->post(route('visits.stage.store', [$patient, 'triage']), [
+            'symptoms' => 'Dry cough', 'tests' => [['name' => 'Malaria RDT', 'result' => 'Negative']],
+        ])->assertRedirect(route('patients.show', $patient));
+
+        $visit = Visit::query()->where('patient_id', $patient->id)->firstOrFail();
+        $this->assertSame($clerk->id, $visit->stage(VisitStageType::Reception)->recorded_by);
+        $this->assertSame($nurse->id, $visit->stage(VisitStageType::Triage)->recorded_by);
     }
 
     public function test_vaccinations_and_reminders_also_need_an_open_passport(): void
@@ -173,7 +208,7 @@ class PassportScanFlowTest extends TestCase
         $admin = User::query()->where('email', 'facility@healthpassport.mw')->firstOrFail();
 
         $this->actingAs($admin)->post(route('facility.staff.store'), [
-            'name' => 'New Worker', 'email' => 'new.worker@healthpassport.mw', 'phone' => '+265 999 000 111', 'job_title' => 'Nurse',
+            'name' => 'New Worker', 'email' => 'new.worker@healthpassport.mw', 'phone' => '+265 999 000 111', 'job_title' => 'Nurse', 'position' => 'nurse',
         ])->assertRedirect();
 
         $this->assertTrue(User::query()->where('email', 'new.worker@healthpassport.mw')->firstOrFail()->hasRole('health_worker'));

@@ -13,6 +13,7 @@
                 <x-field.input name="email" label="Email address" type="email" :value="$user->email" required />
                 <x-field.input name="phone" label="Phone number" :value="$user->phone" />
                 <x-field.input name="job_title" label="Job title" :value="$user->job_title" placeholder="For example, Clinical Officer or Nurse" />
+                <x-field.select name="position" label="Position" :options="App\Enums\Position::options()" :value="$user->position" required help="Decides which stage of a visit this worker may record." />
                 <x-field.input name="professional_registration_number" label="Professional registration number" :value="$user->professional_registration_number" class="sm:col-span-2" />
             </div>
             <div class="flex justify-end gap-2 border-t border-line px-5 py-3">

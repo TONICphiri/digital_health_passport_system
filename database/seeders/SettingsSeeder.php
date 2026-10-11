@@ -23,6 +23,7 @@ class SettingsSeeder extends Seeder
             ['child_separation_age', '18', 'Age at which a child passport becomes independent', 'general', 'number', null],
             ['passport_session_minutes', '30', 'Minutes a scanned passport stays open', 'general', 'number', null],
             ['offline_draft_hours', '24', 'Hours a visit typed offline is kept on the device', 'general', 'number', null],
+            ['immunisation_grace_days', '28', 'Days a vaccine stays on time after its due date', 'immunisation', 'number', 'After this a vaccine is shown as overdue and a reminder is created.'],
             ['email_notifications_enabled', '0', 'Send notifications by email', 'notifications', 'boolean', null],
             ['sms_notifications_enabled', '0', 'Send notifications by text message', 'notifications', 'boolean', null],
             ['phone_country_code', '265', 'Country calling code for phone numbers', 'notifications', 'text', null],

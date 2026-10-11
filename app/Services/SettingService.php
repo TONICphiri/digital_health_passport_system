@@ -121,4 +121,13 @@ class SettingService
     {
         return max(5, (int) $this->get('passport_session_minutes', '30'));
     }
+
+    /**
+     * Days a vaccine is still on time after its due date before it is shown
+     * as overdue.
+     */
+    public function immunisationGraceDays(): int
+    {
+        return max(0, (int) $this->get('immunisation_grace_days', '28'));
+    }
 }

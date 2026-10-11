@@ -23,7 +23,7 @@
             @else
                 <div class="overflow-x-auto">
                     <table class="table">
-                        <thead><tr><th>Facility</th><th>District</th><th class="text-right">Staff</th><th class="text-right">Patients</th><th>Status</th></tr></thead>
+                        <thead><tr><th>Facility</th><th>District</th><th class="text-right">Staff</th><th class="text-right">Patients</th><th class="text-right">Visits</th><th>Status</th></tr></thead>
                         <tbody>
                             @foreach ($facilities as $facility)
                                 <tr>
@@ -31,6 +31,7 @@
                                     <td>{{ $facility->district->name }}</td>
                                     <td class="text-right tabular-nums">{{ $facility->users_count }}</td>
                                     <td class="text-right tabular-nums">{{ $facility->patients_count }}</td>
+                                    <td class="text-right tabular-nums">{{ $facility->visits_count }}</td>
                                     <td><x-status :value="$facility->status" /></td>
                                 </tr>
                             @endforeach

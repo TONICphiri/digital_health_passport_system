@@ -2,12 +2,13 @@
 
 namespace Tests\Feature;
 
-use App\Models\Encounter;
+use App\Enums\VisitStageType;
 use App\Models\PassportAccess;
 use App\Models\Patient;
 use App\Models\User;
 use App\Models\Vaccination;
 use App\Models\Vaccine;
+use App\Models\Visit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -25,6 +26,11 @@ class OfflineVisitTest extends TestCase
     private function worker(): User
     {
         return User::query()->where('email', 'healthworker@healthpassport.mw')->firstOrFail();
+    }
+
+    private function clerk(): User
+    {
+        return User::query()->where('email', 'clerk@healthpassport.mw')->firstOrFail();
     }
 
     private function patient(): Patient
@@ -60,17 +66,25 @@ class OfflineVisitTest extends TestCase
         $id = (string) Str::uuid();
         $accesses = PassportAccess::query()->where('patient_id', $patient->id)->count();
 
-        $this->actingAs($this->worker())->post(route('patients.sync'), $this->payload([
-            'encounter' => [
-                'reason' => 'Headache', 'diagnosis' => 'Tension headache', 'temperature' => '36.7',
-                'medications' => [['name' => 'Paracetamol', 'dosage' => '500 mg', 'frequency' => 'Three times daily', 'duration_days' => '3']],
-            ],
+        $this->actingAs($this->clerk())->post(route('patients.sync'), $this->payload([
+            'encounter' => ['reason' => 'Headache', 'temperature' => '36.7'],
         ], $id))->assertRedirect(route('patients.show', ['patient' => $patient, 'synced' => $id]))->assertSessionHas('success');
 
-        $encounter = Encounter::query()->where('patient_id', $patient->id)->where('reason', 'Headache')->firstOrFail();
-        $this->assertSame('Paracetamol', $encounter->medications()->first()->name);
-        $this->assertSame($this->worker()->id, $encounter->recorded_by);
+        $visit = Visit::query()->where('patient_id', $patient->id)->firstOrFail();
+        $this->assertSame('Headache', $visit->reason);
+        $this->assertSame($this->clerk()->id, $visit->stage(VisitStageType::Reception)->recorded_by);
         $this->assertSame($accesses + 1, PassportAccess::query()->where('patient_id', $patient->id)->count(), 'The opening is in the access log.');
+    }
+
+    public function test_a_reception_note_cannot_be_added_by_a_worker_who_is_not_at_the_front_desk(): void
+    {
+        $patient = $this->patient();
+
+        $this->actingAs($this->worker())->post(route('patients.sync'), $this->payload([
+            'encounter' => ['reason' => 'Headache'],
+        ]))->assertSessionHas('error');
+
+        $this->assertDatabaseMissing('visits', ['patient_id' => $patient->id]);
     }
 
     public function test_a_vaccination_is_recorded_with_its_reminder(): void
@@ -87,13 +101,13 @@ class OfflineVisitTest extends TestCase
     public function test_the_same_visit_sent_twice_is_recorded_once(): void
     {
         $id = (string) Str::uuid();
-        $draft = ['encounter' => ['reason' => 'Back pain', 'diagnosis' => 'Strain']];
+        $draft = ['encounter' => ['reason' => 'Back pain']];
 
-        $this->actingAs($this->worker())->post(route('patients.sync'), $this->payload($draft, $id));
-        $this->actingAs($this->worker())->post(route('patients.sync'), $this->payload($draft, $id))
+        $this->actingAs($this->clerk())->post(route('patients.sync'), $this->payload($draft, $id));
+        $this->actingAs($this->clerk())->post(route('patients.sync'), $this->payload($draft, $id))
             ->assertRedirect(route('patients.scan'));
 
-        $this->assertSame(1, Encounter::query()->where('reason', 'Back pain')->count());
+        $this->assertSame(1, Visit::query()->where('reason', 'Back pain')->count());
     }
 
     public function test_notes_that_fail_the_rules_go_back_to_the_normal_form_with_the_text_kept(): void
@@ -101,36 +115,37 @@ class OfflineVisitTest extends TestCase
         $patient = $this->patient();
         $id = (string) Str::uuid();
 
-        $this->actingAs($this->worker())->post(route('patients.sync'), $this->payload([
-            'encounter' => ['reason' => 'Fever', 'diagnosis' => 'Malaria', 'systolic_pressure' => '120'],
+        $this->actingAs($this->clerk())->post(route('patients.sync'), $this->payload([
+            'encounter' => ['reason' => 'Fever', 'systolic_pressure' => '120'],
         ], $id))
-            ->assertRedirect(route('encounters.create', ['patient' => $patient, 'synced' => $id]))
+            ->assertRedirect(route('visits.stage.create', ['patient' => $patient, 'type' => 'reception', 'synced' => $id]))
             ->assertSessionHasErrors('diastolic_pressure')
             ->assertSessionHasInput('reason', 'Fever');
 
-        $this->assertSame(0, Encounter::query()->where('reason', 'Fever')->count());
+        $this->assertDatabaseMissing('visits', ['patient_id' => $patient->id]);
     }
 
     public function test_a_code_that_is_not_a_card_records_nothing(): void
     {
-        $before = Encounter::query()->count();
+        $before = Visit::query()->count();
 
-        $this->actingAs($this->worker())->post(route('patients.sync'), [
+        $this->actingAs($this->clerk())->post(route('patients.sync'), [
             'code' => 'https://example.com', 'sync_id' => (string) Str::uuid(),
-            'draft' => ['encounter' => ['reason' => 'X', 'diagnosis' => 'Y']],
+            'draft' => ['encounter' => ['reason' => 'X']],
         ])->assertSessionHas('error');
 
-        $this->assertSame($before, Encounter::query()->count());
+        $this->assertSame($before, Visit::query()->count());
     }
 
     public function test_notes_cannot_be_added_to_an_inactive_passport(): void
     {
-        $this->patient()->update(['status' => 'deceased']);
+        $patient = $this->patient();
+        $patient->update(['status' => 'deceased']);
 
-        $this->actingAs($this->worker())->post(route('patients.sync'), $this->payload([
-            'encounter' => ['reason' => 'Late', 'diagnosis' => 'Late'],
+        $this->actingAs($this->clerk())->post(route('patients.sync'), $this->payload([
+            'encounter' => ['reason' => 'Late'],
         ]))->assertSessionHas('error');
 
-        $this->assertSame(0, Encounter::query()->where('reason', 'Late')->count());
+        $this->assertDatabaseMissing('visits', ['patient_id' => $patient->id]);
     }
 }

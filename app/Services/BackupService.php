@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\RoleName;
 use App\Models\Backup;
 use App\Models\User;
 use App\Notifications\BackupNotification;
@@ -11,6 +12,7 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
+use Spatie\Permission\PermissionRegistrar;
 use Throwable;
 
 /**
@@ -28,9 +30,7 @@ class BackupService
 {
     public const FORMAT = 'dhp-backup-1';
 
-    public function __construct(private readonly SettingService $settings)
-    {
-    }
+    public function __construct(private readonly SettingService $settings) {}
 
     public function run(string $trigger, ?User $by = null): Backup
     {
@@ -140,7 +140,7 @@ class BackupService
         }
 
         $this->settings->flush();
-        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         return $restored;
     }
@@ -173,7 +173,12 @@ class BackupService
             // Only this system's own tables are saved. A shared database may hold tables
             // from other projects, and those are neither ours to copy nor safe to read.
             $owned = $this->ownTables();
-            $existing = collect(Schema::getTables())->pluck('name');
+            // Lists only this database. A shared server may hold the same table
+            // names in another schema (for example the provider's default one),
+            // and without a schema they would each be listed twice. SQLite has no
+            // separate schemas, so its single schema is listed by passing null.
+            $schema = DB::getDriverName() === 'sqlite' ? null : DB::connection()->getDatabaseName();
+            $existing = collect(Schema::getTables($schema))->pluck('name');
             $tables = $existing->filter(fn ($name) => in_array($name, $owned, true))->reject(fn ($name) => in_array($name, $skip, true))->sort()->values();
             $ignored = $existing->diff($tables)->reject(fn ($name) => in_array($name, $skip, true))->sort()->values();
             $total = 0;
@@ -258,7 +263,7 @@ class BackupService
     private function notifyAdministrators(Backup $backup): void
     {
         try {
-            $administrators = User::query()->active()->role(\App\Enums\RoleName::SystemAdmin->value)->get();
+            $administrators = User::query()->active()->role(RoleName::SystemAdmin->value)->get();
 
             Notification::send($administrators, new BackupNotification($backup));
         } catch (Throwable $exception) {
