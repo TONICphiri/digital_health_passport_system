@@ -103,10 +103,8 @@ class OfflineVisitController extends Controller
             }
         }
 
-        Cache::put($key, true, now()->addDays(7));
-
-        // "synced" tells the device the server has taken over, so it can forget its copy.
-        $target = ['patient' => $patient, 'synced' => $data['sync_id']];
+        // "synced" tells the device the server has taken over only when the data was accepted.
+        $target = ['patient' => $patient];
 
         if ($invalid) {
             return redirect()->route($invalid['route'], [...$target, ...$invalid['params']])
@@ -114,6 +112,9 @@ class OfflineVisitController extends Controller
                 ->withInput($invalid['input'])
                 ->with('error', trim(implode(' ', [...$done, ...$problems, 'Some details need correcting before they can be saved.'])));
         }
+
+        Cache::put($key, true, now()->addDays(7));
+        $target['synced'] = $data['sync_id'];
 
         $redirect = redirect()->route('patients.show', $target);
 

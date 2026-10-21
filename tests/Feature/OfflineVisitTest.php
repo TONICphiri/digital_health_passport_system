@@ -115,10 +115,13 @@ class OfflineVisitTest extends TestCase
         $patient = $this->patient();
         $id = (string) Str::uuid();
 
+        // The address carries no "synced" marker, because the server did not
+        // take the notes. The device therefore keeps them in the queue and the
+        // worker can correct and send them again.
         $this->actingAs($this->clerk())->post(route('patients.sync'), $this->payload([
             'encounter' => ['reason' => 'Fever', 'systolic_pressure' => '120'],
         ], $id))
-            ->assertRedirect(route('visits.stage.create', ['patient' => $patient, 'type' => 'reception', 'synced' => $id]))
+            ->assertRedirect(route('visits.stage.create', ['patient' => $patient, 'type' => 'reception']))
             ->assertSessionHasErrors('diastolic_pressure')
             ->assertSessionHasInput('reason', 'Fever');
 
