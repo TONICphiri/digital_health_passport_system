@@ -22,6 +22,24 @@ class PassportAccessService
 {
     private const NO_MATCH = 'No passport matches those details. Check them and try again.';
 
+    /**
+     * Open accesses already read during this request, keyed by user and
+     * patient. A single passport page runs the access check for the view
+     * policy and once per clinical stage; without this cache each check was a
+     * separate query on every page view.
+     *
+     * @var array<string, PassportAccess|null>
+     */
+    private array $openMemo = [];
+
+    /**
+     * The request the memo belongs to. The application container outlives a
+     * single request in tests and under a long running worker, so the memo is
+     * emptied whenever a new request starts. Without this an expired passport
+     * would still look open to the next request.
+     */
+    private ?object $memoRequest = null;
+
     public function __construct(
         private readonly QrCodeService $qr,
         private readonly SettingService $settings,
@@ -85,10 +103,15 @@ class PassportAccessService
             throw new WorkflowException('This passport is inactive. Ask the Facility Administrator for help.');
         }
 
+        if ($patient->status === PatientStatus::Deceased) {
+            throw new WorkflowException('This passport belongs to a deceased person.');
+        }
+
         $existing = $this->activeFor($worker, $patient);
 
         if ($existing) {
             $existing->update(['expires_at' => $this->expiry()]);
+            $this->remember($worker, $patient, $existing);
 
             return $existing;
         }
@@ -102,6 +125,8 @@ class PassportAccessService
             'expires_at' => $this->expiry(),
         ]);
 
+        $this->remember($worker, $patient, $access);
+
         $this->audit->record('passport.opened', "Opened the passport of {$patient->full_name}: {$method->label()}.", $patient);
 
         return $access;
@@ -109,7 +134,14 @@ class PassportAccessService
 
     public function activeFor(User $worker, Patient $patient): ?PassportAccess
     {
-        return PassportAccess::query()
+        $this->resetMemoIfNewRequest();
+        $key = $this->memoKey($worker, $patient);
+
+        if (array_key_exists($key, $this->openMemo)) {
+            return $this->openMemo[$key];
+        }
+
+        return $this->openMemo[$key] = PassportAccess::query()
             ->where('user_id', $worker->id)
             ->where('patient_id', $patient->id)
             ->open()
@@ -125,6 +157,55 @@ class PassportAccessService
     public function close(PassportAccess $access): void
     {
         $access->update(['closed_at' => now()]);
+
+        // Forget the cached open access for this worker and patient.
+        $this->resetMemoIfNewRequest();
+
+        foreach ($this->openMemo as $key => $cached) {
+            if ($cached?->is($access)) {
+                unset($this->openMemo[$key]);
+            }
+        }
+    }
+
+    /**
+     * Remember an access that was just opened or extended. The expiry check on
+     * a cached record would otherwise be stale for the rest of the request.
+     */
+    private function remember(User $worker, Patient $patient, PassportAccess $access): void
+    {
+        $this->resetMemoIfNewRequest();
+        $this->openMemo[$this->memoKey($worker, $patient)] = $access;
+    }
+
+    /**
+     * The memo belongs to one request. The application container outlives a
+     * single request in tests and under a long running worker, so the memo is
+     * emptied whenever a new request starts. Without this an expired passport
+     * would still look open to the next request.
+     */
+    private function resetMemoIfNewRequest(): void
+    {
+        $request = $this->currentRequest();
+
+        if ($this->memoRequest !== $request) {
+            $this->openMemo = [];
+            $this->memoRequest = $request;
+        }
+    }
+
+    /**
+     * The request being handled, or null when there is none, which is the
+     * case for a command run from the console.
+     */
+    private function currentRequest(): ?object
+    {
+        return app()->resolved('request') ? app('request') : null;
+    }
+
+    private function memoKey(User $worker, Patient $patient): string
+    {
+        return $worker->getKey().':'.$patient->getKey();
     }
 
     private function expiry(): Carbon

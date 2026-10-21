@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Listeners\RecordReminderDelivery;
+use App\Services\PassportAccessService;
 use App\Services\SettingService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -21,6 +22,10 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(SettingService::class);
+
+        // One instance per request so the controller and the policies share
+        // the memoised passport access look-ups.
+        $this->app->singleton(PassportAccessService::class);
     }
 
     public function boot(): void
