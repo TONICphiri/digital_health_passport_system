@@ -82,6 +82,10 @@ class PatientController extends Controller
     {
         $this->authorize('view', $patient);
 
+        if ($patient->status === PatientStatus::Deceased) {
+            abort(403, 'This passport belongs to a deceased person.');
+        }
+
         $patient->load(['district', 'registeredFacility', 'emergencyContacts', 'mother', 'children', 'portalAccount']);
 
         $openVisit = $patient->visits()->open()
@@ -118,7 +122,7 @@ class PatientController extends Controller
             'encounters' => $patient->encounters()->with(['facility', 'recordedBy', 'medications'])->limit(20)->get(),
             'vaccinations' => $patient->vaccinations()->with(['vaccine', 'facility'])->get(),
             'reminders' => $patient->reminders()->with('deliveries')->latest('due_on')->get(),
-            'vaccines' => Vaccine::query()->where('is_active', true)->orderBy('name')->get(),
+            'vaccines' => Vaccine::activeCached(),
             'immunisations' => $this->immunisations->allFor($patient),
         ]);
     }
@@ -138,7 +142,36 @@ class PatientController extends Controller
 
         $status = $request->validate(['status' => ['required', Rule::enum(PatientStatus::class)]])['status'];
 
-        $patient->update([...$request->patientData(), 'status' => $status]);
+        $data = $request->patientData();
+
+        if (array_key_exists('national_id', $data) && $data['national_id'] !== null && $data['national_id'] !== '') {
+            $data['national_id'] = strtoupper($data['national_id']);
+        }
+
+        if (array_key_exists('is_child', $data)) {
+            unset($data['is_child']);
+        }
+
+        $age = $patient->date_of_birth ? $patient->date_of_birth->diffInYears(now()) : null;
+        $isChild = $age !== null && $age < $this->settings->childSeparationAge();
+
+        if (! $isChild) {
+            $data['mother_id'] = null;
+
+            if (empty($data['national_id'])) {
+                return back()->withInput()->with('error', 'An adult must be registered with a National ID.');
+            }
+        }
+
+        if ($isChild && array_key_exists('mother_id', $data) && $data['mother_id']) {
+            $mother = Patient::query()->find($data['mother_id']);
+
+            if (! $mother || $mother->sex?->value !== 'female' || $mother->isChild() || ! $this->access->hasOpen($request->user(), $mother)) {
+                return back()->withInput()->with('error', "The linked parent must be the child's mother with an open passport.");
+            }
+        }
+
+        $patient->update([...$data, 'status' => $status]);
         $this->registration->syncEmergencyContacts($patient, $request->contacts());
 
         $this->audit->record('patient.updated', "Updated the personal details of {$patient->full_name}.", $patient);
