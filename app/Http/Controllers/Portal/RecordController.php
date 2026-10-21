@@ -22,6 +22,10 @@ class RecordController extends Controller
         $owner = $this->owner($request);
         $patient = $this->selectedPatient($request, $owner);
 
+        // Reminders raised for vaccines that were never given to this patient
+        // are stale, so they are cancelled before the sidebar reads them.
+        $this->immunisations->cancelUnassignedReminders($patient);
+
         return view('portal.records', [
             'owner' => $owner,
             'patient' => $patient->load(['emergencyContacts', 'registeredFacility']),
@@ -31,7 +35,7 @@ class RecordController extends Controller
             'vaccinations' => $patient->vaccinations()->with(['vaccine', 'facility'])->latest('administered_on')->get(),
             'accesses' => $patient->accesses()->with(['user', 'facility'])->limit(5)->get(),
             'reminders' => $patient->reminders()->where('status', ReminderStatus::Active)->orderBy('due_on')->get(),
-            'immunisations' => $this->immunisations->allFor($patient),
+            'immunisations' => $this->immunisations->assignedFor($patient),
         ]);
     }
 

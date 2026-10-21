@@ -11,11 +11,17 @@ use App\Models\Reminder;
 use App\Models\User;
 use App\Models\Vaccination;
 use App\Models\Vaccine;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 /**
  * Works out whether each vaccine is due for a patient, based on their date of
  * birth and the doses already given, and turns overdue vaccines into reminders.
+ *
+ * Only the vaccines assigned to a patient, meaning the active ones with at
+ * least one dose recorded against their passport, are shown on the portal or
+ * turned into reminders. The rest of the national catalogue is not theirs to
+ * act on yet.
  */
 class ImmunisationStatusService
 {
@@ -75,14 +81,16 @@ class ImmunisationStatusService
     }
 
     /**
-     * The status of every active vaccine for a patient, overdue first.
+     * The status of every active vaccine for a patient, overdue first. The
+     * whole catalogue is considered, so pass assignedVaccines() as $vaccines
+     * to only look at what the patient has actually been given.
      *
      * @param  Collection<int, Vaccine>|null  $vaccines
      * @return Collection<int, ImmunisationResult>
      */
     public function allFor(Patient $patient, ?Collection $vaccines = null): Collection
     {
-        $vaccines ??= Vaccine::query()->where('is_active', true)->orderBy('name')->get();
+        $vaccines ??= Vaccine::activeCached();
         $given = $patient->vaccinations()->get()->groupBy('vaccine_id');
 
         return $vaccines
@@ -92,19 +100,74 @@ class ImmunisationStatusService
     }
 
     /**
-     * Creates one active vaccination reminder per overdue vaccine. A vaccine
-     * that already has an active reminder is left alone, so the daily run
-     * never stacks duplicates. Returns the number of reminders created.
+     * The vaccines assigned to a patient: the active ones with at least one
+     * dose recorded against their passport. The rest of the national
+     * catalogue is not theirs to act on yet.
+     *
+     * @return Collection<int, Vaccine>
+     */
+    public function assignedVaccines(Patient $patient): Collection
+    {
+        return Vaccine::query()
+            ->where('is_active', true)
+            ->whereHas('vaccinations', fn (Builder $vaccinations) => $vaccinations->where('patient_id', $patient->id))
+            ->orderBy('name')
+            ->get();
+    }
+
+    /**
+     * The status of every vaccine assigned to a patient, overdue first. This
+     * is what the portal shows.
+     *
+     * @return Collection<int, ImmunisationResult>
+     */
+    public function assignedFor(Patient $patient): Collection
+    {
+        return $this->allFor($patient, $this->assignedVaccines($patient));
+    }
+
+    /**
+     * Cancels active vaccination reminders that were raised for vaccines
+     * never given to the patient, so the portal stops calling them overdue.
+     * Reminders a health worker wrote by hand carry no vaccine source and
+     * are left alone. Returns the number of reminders cancelled.
+     */
+    public function cancelUnassignedReminders(Patient $patient): int
+    {
+        $assigned = $this->assignedVaccines($patient)->pluck('id');
+
+        $stale = Reminder::query()
+            ->where('patient_id', $patient->id)
+            ->where('category', ReminderCategory::Vaccination)
+            ->where('status', ReminderStatus::Active)
+            ->where('source_type', (new Vaccine)->getMorphClass())
+            ->whereNotIn('source_id', $assigned)
+            ->get();
+
+        foreach ($stale as $reminder) {
+            $reminder->update(['status' => ReminderStatus::Cancelled]);
+        }
+
+        return $stale->count();
+    }
+
+    /**
+     * Creates one active vaccination reminder per overdue assigned vaccine. A
+     * vaccine that already has an active reminder is left alone, so the daily
+     * run never stacks duplicates, and reminders for vaccines that were never
+     * given to the patient are cancelled. Returns the number of reminders
+     * created.
      */
     public function syncOverdueReminders(Patient $patient, ?User $createdBy = null): int
     {
+        $this->cancelUnassignedReminders($patient);
+
         $created = 0;
 
-        foreach ($this->allFor($patient)->where('status', ImmunisationStatus::Overdue) as $result) {
+        foreach ($this->assignedFor($patient)->where('status', ImmunisationStatus::Overdue) as $result) {
             $alreadyCovered = Reminder::query()
                 ->where('patient_id', $patient->id)
                 ->where('category', ReminderCategory::Vaccination)
-                ->where('status', ReminderStatus::Active)
                 ->where('source_type', $result->vaccine->getMorphClass())
                 ->where('source_id', $result->vaccine->id)
                 ->exists();

@@ -7,6 +7,7 @@ use App\Enums\PatientStatus;
 use App\Enums\ReminderCategory;
 use App\Enums\ReminderStatus;
 use App\Enums\Sex;
+use App\Models\Facility;
 use App\Models\Patient;
 use App\Models\Reminder;
 use App\Models\User;
@@ -60,6 +61,7 @@ class ImmunisationStatusTest extends TestCase
         return Vaccination::create([
             'patient_id' => $patient->id,
             'vaccine_id' => $vaccine->id,
+            'facility_id' => Facility::query()->orderBy('id')->value('id'),
             'dose_number' => $doseNumber,
             'administered_on' => $givenOn->toDateString(),
         ]);
@@ -71,8 +73,25 @@ class ImmunisationStatusTest extends TestCase
     }
 
     /**
-     * The seeded national schedule counts for every patient, so tests that
-     * look across all active vaccines first clear the seeded ages.
+     * The kind of reminder the daily run raises for an overdue vaccine.
+     */
+    private function reminderFor(Patient $patient, Vaccine $vaccine): Reminder
+    {
+        return Reminder::create([
+            'patient_id' => $patient->id,
+            'category' => ReminderCategory::Vaccination,
+            'title' => "{$vaccine->name}, dose",
+            'message' => "{$vaccine->name} is overdue. Visit your nearest health facility.",
+            'due_on' => Carbon::today()->subDays(30)->toDateString(),
+            'status' => ReminderStatus::Active,
+            'source_type' => $vaccine->getMorphClass(),
+            'source_id' => $vaccine->id,
+        ]);
+    }
+
+    /**
+     * allFor() still walks the whole catalogue, so tests that look across
+     * every active vaccine first clear the seeded ages.
      */
     private function clearSeededSchedules(): void
     {
@@ -180,10 +199,14 @@ class ImmunisationStatusTest extends TestCase
 
     public function test_an_overdue_vaccine_creates_one_active_reminder_only(): void
     {
-        $this->clearSeededSchedules();
         $patient = $this->patient(Carbon::today()->subDays(200));
-        $first = $this->vaccine(['recommended_age_days' => 0]);
+        $first = $this->vaccine(['total_doses' => 2, 'days_between_doses' => 28, 'recommended_age_days' => 0]);
         $second = $this->vaccine(['total_doses' => 2, 'days_between_doses' => 28, 'recommended_age_days' => 0]);
+        $neverGiven = $this->vaccine(['recommended_age_days' => 0]);
+
+        // One dose each makes them assigned, and the second dose is long late.
+        $this->dose($patient, $first, $patient->date_of_birth);
+        $this->dose($patient, $second, $patient->date_of_birth);
 
         $this->assertSame(2, $this->service()->syncOverdueReminders($patient));
         $this->assertSame(0, $this->service()->syncOverdueReminders($patient));
@@ -191,9 +214,67 @@ class ImmunisationStatusTest extends TestCase
         $reminders = Reminder::query()->where('patient_id', $patient->id)->get();
         $this->assertCount(2, $reminders);
         $this->assertEqualsCanonicalizing([$first->id, $second->id], $reminders->pluck('source_id')->all());
+        $this->assertFalse($reminders->pluck('source_id')->contains($neverGiven->id));
         $this->assertSame(ReminderCategory::Vaccination, $reminders[0]->category);
         $this->assertSame(ReminderStatus::Active, $reminders[0]->status);
-        $this->assertSame($patient->date_of_birth->toDateString(), $reminders[0]->due_on->toDateString());
+        $this->assertSame($patient->date_of_birth->copy()->addDays(28)->toDateString(), $reminders[0]->due_on->toDateString());
+    }
+
+    public function test_only_vaccines_with_a_recorded_dose_are_assigned_to_the_patient(): void
+    {
+        $patient = $this->patient(Carbon::today()->subDays(200));
+        $given = $this->vaccine(['total_doses' => 2, 'days_between_doses' => 28, 'recommended_age_days' => 0]);
+        $neverGiven = $this->vaccine(['recommended_age_days' => 0]);
+
+        $this->dose($patient, $given, $patient->date_of_birth);
+
+        $assignedIds = $this->service()->assignedVaccines($patient)->pluck('id');
+
+        $this->assertTrue($assignedIds->contains($given->id));
+        $this->assertFalse($assignedIds->contains($neverGiven->id));
+
+        $results = $this->service()->assignedFor($patient);
+
+        $this->assertCount(1, $results);
+        $this->assertSame($given->id, $results->first()->vaccine->id);
+        $this->assertSame(ImmunisationStatus::Overdue, $results->first()->status);
+    }
+
+    public function test_a_vaccine_that_was_never_given_creates_no_reminder(): void
+    {
+        $patient = $this->patient(Carbon::today()->subDays(200));
+        $this->vaccine(['recommended_age_days' => 0]);
+
+        $this->assertTrue($this->service()->assignedFor($patient)->isEmpty());
+        $this->assertSame(0, $this->service()->syncOverdueReminders($patient));
+        $this->assertSame(0, Reminder::query()->where('patient_id', $patient->id)->count());
+    }
+
+    public function test_a_reminder_for_a_vaccine_that_was_never_given_is_cancelled(): void
+    {
+        $patient = $this->patient(Carbon::today()->subDays(200));
+        $neverGiven = $this->vaccine();
+        $given = $this->vaccine();
+
+        $this->dose($patient, $given, Carbon::today()->subDays(10));
+
+        $stale = $this->reminderFor($patient, $neverGiven);
+        $assigned = $this->reminderFor($patient, $given);
+        $manual = Reminder::create([
+            'patient_id' => $patient->id,
+            'category' => ReminderCategory::Vaccination,
+            'title' => 'Catch up visit',
+            'message' => 'Come to the clinic for a checkup.',
+            'due_on' => Carbon::today()->addDays(5)->toDateString(),
+            'status' => ReminderStatus::Active,
+        ]);
+
+        $this->assertSame(1, $this->service()->cancelUnassignedReminders($patient));
+        $this->assertSame(0, $this->service()->cancelUnassignedReminders($patient));
+
+        $this->assertSame(ReminderStatus::Cancelled, $stale->fresh()->status);
+        $this->assertSame(ReminderStatus::Active, $assigned->fresh()->status);
+        $this->assertSame(ReminderStatus::Active, $manual->fresh()->status);
     }
 
     public function test_a_vaccine_still_within_grace_is_not_flagged_overdue(): void
@@ -239,13 +320,34 @@ class ImmunisationStatusTest extends TestCase
 
     public function test_the_portal_shows_the_immunisation_status_of_each_vaccine(): void
     {
-        Vaccine::query()->where('name', 'BCG')->update(['recommended_age_days' => null]);
         $holder = User::query()->role('patient')->firstOrFail();
+        $patient = $holder->patient;
+
+        // Assigned vaccines only: one with no age set, one whose next dose
+        // was due long ago.
+        $noAge = $this->vaccine(['total_doses' => 2, 'days_between_doses' => 28, 'recommended_age_days' => null]);
+        $late = $this->vaccine(['total_doses' => 2, 'days_between_doses' => 10, 'recommended_age_days' => 0]);
+
+        $this->dose($patient, $noAge, Carbon::today()->subMonths(6));
+        $this->dose($patient, $late, Carbon::today()->subDays(100));
 
         $this->actingAs($holder)->get(route('portal.records'))
             ->assertOk()
             ->assertSee('Immunisation status')
             ->assertSee('No schedule set')
             ->assertSee('Overdue');
+    }
+
+    public function test_the_portal_does_not_show_vaccines_that_were_never_given(): void
+    {
+        $holder = User::query()->role('patient')->firstOrFail();
+
+        // The seeded holder is old enough for several catalogue vaccines to be
+        // past their age, but none of them were ever given, so the portal must
+        // not call them overdue.
+        $this->actingAs($holder)->get(route('portal.records'))
+            ->assertOk()
+            ->assertDontSee('Immunisation status')
+            ->assertDontSee('Overdue');
     }
 }
