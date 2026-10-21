@@ -13,8 +13,8 @@
             <section>
                 <h2 class="text-base">{{ $patient->full_name }}</h2>
                 <dl class="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
-                    <div><dt class="text-[13px] text-muted">Passport number</dt><dd class="mono font-medium">{{ $patient->passport_number }}</dd></div>
-                    <div><dt class="text-[13px] text-muted">National ID</dt><dd class="mono font-medium">{{ $patient->national_id ?? 'Not issued' }}</dd></div>
+                    <div><dt class="text-[13px] text-muted">Passport number</dt><dd class="mono font-medium">{{ $patient->masked_passport_number }}</dd></div>
+                    <div><dt class="text-[13px] text-muted">National ID</dt><dd class="mono font-medium">{{ $patient->masked_national_id }}</dd></div>
                     <div><dt class="text-[13px] text-muted">Date of birth</dt><dd class="font-medium">{{ $patient->date_of_birth->format('j M Y') }}</dd></div>
                     <div><dt class="text-[13px] text-muted">Sex</dt><dd class="font-medium">{{ $patient->sex->label() }}</dd></div>
                     <div><dt class="text-[13px] text-muted">Blood group</dt><dd class="font-medium">{{ $patient->blood_group ?: 'Not recorded' }}</dd></div>

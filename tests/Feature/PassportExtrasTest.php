@@ -74,8 +74,13 @@ class PassportExtrasTest extends TestCase
     {
         $child = $this->holder()->patient->children()->first();
 
+        // The passport number is masked, so it cannot be read off the screen
+        // or off the printout by someone standing nearby.
         $this->actingAs($this->holder())->get(route('portal.summary', ['patient' => $child->id]))
-            ->assertOk()->assertSee($child->passport_number)->assertSee('BCG');
+            ->assertOk()
+            ->assertSee($child->masked_passport_number)
+            ->assertDontSee($child->passport_number)
+            ->assertSee('BCG');
 
         $this->actingAs($this->holder())->get(route('portal.summary'))
             ->assertOk()->assertDontSee('Postnatal review');
@@ -199,6 +204,12 @@ class PassportExtrasTest extends TestCase
             ->assertSee('id="pending-scan"', false);
 
         $this->assertFileExists(public_path('sw.js'));
+
+        // The worker itself stores the offline page, so a failed file fetch on the
+        // page can never leave the scan page unreachable offline.
+        $worker = (string) file_get_contents(public_path('sw.js'));
+        $this->assertStringContainsString('offline/scan', $worker);
+        $this->assertStringContainsString('caches.open(SHELL)', $worker);
     }
 
     /* Backups */

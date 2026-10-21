@@ -34,6 +34,8 @@ class Encounter extends Model
         return [
             'follow_up_on' => 'date',
             'recorded_at' => 'datetime',
+            'diagnosis' => 'encrypted',
+            'treatment_summary' => 'encrypted',
         ];
     }
 

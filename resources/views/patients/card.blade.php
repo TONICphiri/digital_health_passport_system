@@ -13,8 +13,8 @@
             <div class="flex flex-1 gap-3 p-3">
                 <div class="min-w-0 flex-1 space-y-1 text-[10px] leading-tight">
                     <p class="text-[12px] font-semibold text-ink">{{ $patient->full_name }}</p>
-                    <p><span class="text-muted">Passport</span> <span class="mono text-[11px] font-semibold">{{ $patient->passport_number }}</span></p>
-                    <p><span class="text-muted">National ID</span> <span class="mono">{{ $patient->national_id ?? 'Not issued' }}</span></p>
+                    <p><span class="text-muted">Passport</span> <span class="mono text-[11px] font-semibold">{{ $patient->masked_passport_number }}</span></p>
+                    <p><span class="text-muted">National ID</span> <span class="mono">{{ $patient->masked_national_id }}</span></p>
                     <p><span class="text-muted">Born</span> {{ $patient->date_of_birth->format('j M Y') }}, {{ $patient->sex->label() }}</p>
                     <p><span class="text-muted">Blood group</span> {{ $patient->blood_group ?? 'Not known' }}</p>
                 </div>

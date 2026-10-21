@@ -56,6 +56,10 @@ class Patient extends Model
             'separated_from_mother_at' => 'datetime',
             'sex' => Sex::class,
             'status' => PatientStatus::class,
+            'allergies' => 'encrypted',
+            'chronic_conditions' => 'encrypted',
+            'disabilities' => 'encrypted',
+            'health_notes' => 'encrypted',
         ];
     }
 
@@ -178,11 +182,45 @@ class Patient extends Model
 
         return $query->where(function (Builder $inner) use ($term) {
             $inner->where('passport_number', $term)
-                ->orWhere('national_id', strtoupper($term))
                 ->orWhere('phone', 'like', "%{$term}%")
                 ->orWhere('first_name', 'like', "%{$term}%")
                 ->orWhere('last_name', 'like', "%{$term}%")
                 ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$term}%"]);
         });
     }
+
+    protected function maskedNationalId(): Attribute
+    {
+        $value = $this->national_id;
+
+        if (! is_string($value) || $value === '') {
+            return Attribute::get(fn () => 'Not issued');
+        }
+
+        $length = strlen($value);
+
+        if ($length <= 4) {
+            return Attribute::get(fn () => str_repeat('X', $length));
+        }
+
+        return Attribute::get(fn () => str_repeat('X', $length - 4).substr($value, -4));
+    }
+
+    protected function maskedPassportNumber(): Attribute
+    {
+        $value = $this->passport_number;
+
+        if (! is_string($value) || $value === '') {
+            return Attribute::get(fn () => 'Not issued');
+        }
+
+        $length = strlen($value);
+
+        if ($length <= 6) {
+            return Attribute::get(fn () => str_repeat('X', $length));
+        }
+
+        return Attribute::get(fn () => substr($value, 0, 3).str_repeat('X', $length - 6).substr($value, -3));
+    }
 }
+
