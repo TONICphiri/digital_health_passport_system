@@ -25,6 +25,7 @@ class LoginController extends Controller
         ]);
 
         if (! Auth::attempt($credentials, $request->boolean('remember'))) {
+            $audit->record('user.sign-in-failed', 'Sign in attempt failed.');
             throw ValidationException::withMessages([
                 'email' => 'The email or password is incorrect.',
             ]);
@@ -33,13 +34,17 @@ class LoginController extends Controller
         $request->session()->regenerate();
         $user = $request->user();
         $user->forceFill(['last_login_at' => now()])->save();
-        $audit->record('user.signed-in', "Signed in to the system.");
+        $audit->record('user.signed-in', 'Signed in to the system.');
 
         return redirect()->intended(route('dashboard'));
     }
 
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(Request $request, AuditLogger $audit): RedirectResponse
     {
+        if ($request->user()) {
+            $audit->record('user.signed-out', 'Signed out of the system.');
+        }
+
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();

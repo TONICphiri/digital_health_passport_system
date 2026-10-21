@@ -84,9 +84,15 @@ class FacilityController extends Controller
 
     public function toggleStatus(Facility $facility): RedirectResponse
     {
+        $wasActive = $facility->isActive();
+
         $facility->update([
-            'status' => $facility->isActive() ? FacilityStatus::Inactive : FacilityStatus::Active,
+            'status' => $wasActive ? FacilityStatus::Inactive : FacilityStatus::Active,
         ]);
+
+        if ($wasActive) {
+            $facility->users()->update(['status' => \App\Enums\UserStatus::Inactive]);
+        }
 
         $state = $facility->isActive() ? 'activated' : 'deactivated';
         $this->audit->record('facility.status-changed', "{$facility->name} was {$state}.", $facility);

@@ -31,7 +31,7 @@ class CertificateController extends Controller
         return view('certificates.show', [
             'vaccination' => $vaccination,
             'patient' => $patient,
-            'qrCode' => $qr->forUrl(URL::signedRoute('certificates.verify', $vaccination), 120),
+            'qrCode' => $qr->forUrl(URL::temporarySignedRoute('certificates.verify', now()->addDays(30), $vaccination), 120),
             'back' => $back,
         ]);
     }

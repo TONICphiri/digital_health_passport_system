@@ -47,6 +47,10 @@ class VisitPolicy
             return false;
         }
 
+        if (! $user->facility_id || $visit->facility_id !== $user->facility_id) {
+            return false;
+        }
+
         $patient = $visit->patient;
 
         return $patient !== null

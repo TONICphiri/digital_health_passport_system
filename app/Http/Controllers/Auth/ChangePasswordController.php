@@ -15,7 +15,7 @@ class ChangePasswordController extends Controller
         return view('auth.change-password', ['forced' => $request->user()->must_change_password]);
     }
 
-    public function update(Request $request): RedirectResponse
+    public function update(Request $request, \App\Services\AuditLogger $audit): RedirectResponse
     {
         $request->validate([
             'current_password' => ['required', 'current_password'],
@@ -29,6 +29,8 @@ class ChangePasswordController extends Controller
             'password' => $request->input('password'),
             'must_change_password' => false,
         ]);
+
+        $audit->record('user.password-changed', 'Password changed.');
 
         return redirect()->route('dashboard')->with('success', 'Your password has been changed.');
     }
