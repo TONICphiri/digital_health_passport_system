@@ -7,6 +7,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $title ? $title.' | ' : '' }}{{ $systemName }}</title>
     <link rel="icon" type="image/png" href="{{ asset('images/logo.png') }}">
+    <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
+    <meta name="theme-color" content="#1e3a8a">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('head')
 </head>

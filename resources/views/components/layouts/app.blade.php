@@ -11,6 +11,8 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title ? $title.' | ' : '' }}{{ $systemName }}</title>
     <link rel="icon" type="image/png" href="{{ asset('images/logo.png') }}">
+    <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
+    <meta name="theme-color" content="#1e3a8a">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('head')
 </head>
@@ -123,6 +125,25 @@
                 </div>
             </div>
         </header>
+
+        {{-- PWA install banner — shown only when the app can be installed and isn't already --}}
+        <div x-data="{ installable: false }"
+             @dhp:pwa-installable.window="installable = true"
+             x-show="installable && ! window.DhpPwa.isInstalled()"
+             x-cloak
+             class="fixed bottom-4 left-4 right-4 sm:bottom-6 sm:left-6 sm:right-6 max-w-md z-50 bg-white border border-line rounded-lg shadow-lg p-4 flex items-center gap-3">
+            <div class="flex-shrink-0">
+                <img src="{{ asset('images/icon-192.svg') }}" alt="" class="h-12 w-12 rounded-lg">
+            </div>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-ink">Install Digital Health Passport</p>
+                <p class="text-[12px] text-muted">Add to your home screen for offline use and faster access.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="button" @click="window.DhpPwa.install()" class="btn-primary btn-sm">Install</button>
+                <button type="button" @click="installable = false" class="text-[12px] text-muted hover:text-ink">Later</button>
+            </div>
+        </div>
 
         <main id="main" class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:py-8">
             <x-flash />

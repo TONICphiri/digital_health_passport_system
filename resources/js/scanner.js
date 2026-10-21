@@ -49,12 +49,28 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await navigator.serviceWorker.register(form.dataset.worker);
             await navigator.serviceWorker.ready;
+        } catch { /* without the worker nothing is kept, the page still works online */ }
 
-            const files = [...document.querySelectorAll('script[src], link[rel="stylesheet"], link[rel="modulepreload"]')]
-                .map((element) => element.src || element.href)
-                .filter((url) => url.includes('/build/assets/'));
+        // The shell first: it is the page the worker needs when the connection drops.
+        // The worker also stores it while installing, so a failure here is harmless.
+        try {
+            if (form.dataset.shell) await (await caches.open('dhp-shell')).add(form.dataset.shell);
+        } catch { /* installed worker refreshes the shell on its own */ }
 
+        // Files are cached one by one, because one missing file should not cost
+        // the others.
+        const files = [...document.querySelectorAll('script[src], link[rel="stylesheet"], link[rel="modulepreload"]')]
+            .map((element) => element.src || element.href)
+            .filter((url) => url.includes('/build/assets/'));
+
+        try {
             const statics = await caches.open('dhp-static-v1');
+
+            const store = async (url) => {
+                try {
+                    await statics.add(url);
+                } catch { /* missing file, the page still works online */ }
+            };
 
             // Scripts import each other, so those files are found by reading the scripts.
             const seen = new Set(files);
@@ -71,16 +87,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            await statics.addAll([...seen]);
+            for (const url of seen) await store(url);
 
             // Fonts are named inside the stylesheet, so they are found there.
             for (const css of files.filter((url) => url.endsWith('.css'))) {
                 const text = await (await fetch(css)).text();
                 const fonts = [...text.matchAll(/url\(([^)]+\.woff2)\)/g)].map((match) => new URL(match[1].replace(/['"]/g, ''), css).href);
-                await statics.addAll(fonts);
+                for (const font of fonts) await store(font);
             }
-
-            if (form.dataset.shell) await (await caches.open('dhp-shell')).add(form.dataset.shell);
         } catch { /* the page still works online */ }
     };
 

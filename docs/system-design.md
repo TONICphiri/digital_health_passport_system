@@ -136,7 +136,7 @@ Services: `PatientRegistrationService`, `PassportAccessService`, `StaffAccountSe
 | FR-29 | The System Administrator shall make a backup on demand and every day at the set time; the file is encrypted with the application key, can be downloaded, and old copies are removed after the retention days (the three newest are always kept). |
 | FR-30 | After every backup, successful or not, each System Administrator shall receive a notification and an email; the email of a successful backup carries a link to download the file after signing in. |
 | FR-31 | The System Administrator shall restore a backup with the `backup:restore` command. |
-| FR-32 | The scan page shall load without a connection. Visit and vaccination notes typed offline shall be kept on the device for the number of hours set in settings, and sent to the passport once the connection returns and the card has been scanned. |
+| FR-32 | The scan page shall load without a connection. When any other page cannot be reached without a connection, the stored scan page is served in its place, because it holds no account or patient information; the "No connection" page appears only when no scan page is stored on the device. Visit and vaccination notes typed offline shall be kept on the device for the number of hours set in settings, and sent to the passport once the connection returns and the card has been scanned. |
 
 ### RBAC (as seeded)
 

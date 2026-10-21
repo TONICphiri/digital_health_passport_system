@@ -15,7 +15,15 @@ Alpine.data('notificationBell', (endpoint, intervalSeconds) => ({
 
     init() {
         this.refresh();
-        setInterval(() => this.refresh(), intervalSeconds * 1000);
+        setInterval(() => {
+            if (!document.hidden) this.refresh();
+        }, intervalSeconds * 1000);
+
+        // Refresh immediately when the user comes back to the tab instead of
+        // waiting for the next tick, so hidden tabs cost the server nothing.
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) this.refresh();
+        });
     },
 
     async refresh() {
@@ -81,15 +89,48 @@ if (synced) {
 purgeExpired();
 
 /**
- * The queue and the page kept for offline use are removed when someone signs
- * out, so the next person never sees what the previous one left behind.
+ * The queue, the offline shell, and cached patient pages are removed when
+ * someone signs out, so the next person never sees what the previous one left behind.
  */
 document.addEventListener('submit', (event) => {
     if (!(event.target instanceof HTMLFormElement) || !event.target.action.endsWith('/logout')) return;
 
     clearAll();
-    if ('caches' in window) caches.delete('dhp-shell');
+    if ('caches' in window) {
+        caches.delete('dhp-shell-v2');
+        caches.delete('dhp-shell-v3');
+        caches.delete('dhp-patient-v1');
+        caches.delete('dhp-patient-v2');
+    }
 });
 
 window.Alpine = Alpine;
 Alpine.start();
+
+/**
+ * PWA install prompt. When the browser offers to install the app, store the
+ * deferred event and expose it through a global so a UI button can trigger it.
+ */
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    window.dispatchEvent(new CustomEvent('dhp:pwa-installable', { detail: { available: true } }));
+});
+
+window.DhpPwa = {
+    isInstallable() {
+        return deferredInstallPrompt !== null;
+    },
+    async install() {
+        if (!deferredInstallPrompt) return false;
+        deferredInstallPrompt.prompt();
+        const { outcome } = await deferredInstallPrompt.userChoice;
+        deferredInstallPrompt = null;
+        return outcome === 'accepted';
+    },
+    isInstalled() {
+        return window.matchMedia('(display-mode: standalone)').matches;
+    },
+};
+
