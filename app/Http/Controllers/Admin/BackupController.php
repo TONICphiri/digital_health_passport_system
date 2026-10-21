@@ -83,7 +83,7 @@ class BackupController extends Controller
 
         try {
             $restored = $this->backups->restore($path);
-            $this->audit->record('backup.restored', 'Restored the database from an uploaded backup.', ['restored' => $restored]);
+            $this->audit->record('backup.restored', 'Restored the database from an uploaded backup ('.array_sum($restored).' rows).');
         } catch (Throwable $exception) {
             report($exception);
 
