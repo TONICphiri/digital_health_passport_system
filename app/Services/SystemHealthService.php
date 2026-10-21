@@ -49,14 +49,24 @@ class SystemHealthService
     private function databaseCheck(): array
     {
         try {
-            $database = DB::connection()->getDatabaseName();
-            $bytes = (int) DB::table('information_schema.tables')
-                ->where('table_schema', $database)
-                ->sum(DB::raw('data_length + index_length'));
+            $connection = DB::connection();
+            $database = $connection->getDatabaseName();
+            $driver = $connection->getDriverName();
+
+            $bytes = 0;
+            if ($driver === 'mysql') {
+                $bytes = (int) DB::table('information_schema.tables')
+                    ->where('table_schema', $database)
+                    ->sum(DB::raw('data_length + index_length'));
+            }
+
+            $value = $bytes > 0
+                ? "Connected to {$database}, ".number_format($bytes / 1048576, 2).' MB used'
+                : "Connected to {$database} ({$driver})";
 
             return [
                 'label' => 'Database connection',
-                'value' => "Connected to {$database}, ".number_format($bytes / 1048576, 2).' MB used',
+                'value' => $value,
                 'healthy' => true,
             ];
         } catch (Throwable $exception) {

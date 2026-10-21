@@ -24,7 +24,7 @@ class OfflineForms
             'frequencies' => $settings->list('dosage_frequencies'),
             'limits' => config('health_passport.vital_limits'),
             'maxMedications' => config('health_passport.max_medications'),
-            'vaccines' => Vaccine::query()->where('is_active', true)->orderBy('name')->get(),
+            'vaccines' => Vaccine::activeCached(),
         ];
     }
 }

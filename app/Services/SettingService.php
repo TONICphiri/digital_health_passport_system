@@ -17,11 +17,24 @@ class SettingService
     private const CACHE_KEY = 'system-settings';
 
     /**
+     * Per-request copy of the settings. The view composer asks for the system
+     * name on every view instance (layout, icons, badges), and without this
+     * property each look-up was a separate query against the cache table.
+     *
+     * @var Collection<string, string|null>|null
+     */
+    private ?Collection $memo = null;
+
+    /**
      * @return Collection<string, string|null>
      */
     public function all(): Collection
     {
-        return Cache::rememberForever(self::CACHE_KEY, function () {
+        if ($this->memo !== null) {
+            return $this->memo;
+        }
+
+        return $this->memo = Cache::rememberForever(self::CACHE_KEY, function () {
             try {
                 if (! Schema::hasTable('settings')) {
                     return collect();
@@ -70,6 +83,7 @@ class SettingService
 
     public function flush(): void
     {
+        $this->memo = null;
         Cache::forget(self::CACHE_KEY);
     }
 

@@ -18,7 +18,7 @@ class VaccinationController extends Controller
 
         return view('clinical.vaccination', [
             'patient' => $patient,
-            'vaccines' => Vaccine::query()->where('is_active', true)->orderBy('name')->get(),
+            'vaccines' => Vaccine::activeCached(),
             'given' => $patient->vaccinations()->with('vaccine')->latest('administered_on')->get(),
         ]);
     }

@@ -53,12 +53,16 @@ class DashboardController extends Controller
     private function facilityAdmin(User $user): View
     {
         $facilityId = $user->facility_id;
+        $dayStart = today();
+        $dayEnd = today()->addDay();
 
         return view('dashboards.facility-admin', [
             'stats' => [
                 'staff' => User::query()->where('facility_id', $facilityId)->withRole(RoleName::HealthWorker)->active()->count(),
-                'openedToday' => PassportAccess::query()->where('facility_id', $facilityId)->whereDate('opened_at', today())->count(),
-                'visitsToday' => Visit::query()->where('facility_id', $facilityId)->whereDate('started_at', today())->count(),
+                'openedToday' => PassportAccess::query()->where('facility_id', $facilityId)
+                    ->where('opened_at', '>=', $dayStart)->where('opened_at', '<', $dayEnd)->count(),
+                'visitsToday' => Visit::query()->where('facility_id', $facilityId)
+                    ->where('started_at', '>=', $dayStart)->where('started_at', '<', $dayEnd)->count(),
                 'issuedThisMonth' => Patient::query()->where('registered_facility_id', $facilityId)->where('created_at', '>=', today()->startOfMonth())->count(),
             ],
             'staff' => User::query()->where('facility_id', $facilityId)->withRole(RoleName::HealthWorker)->orderBy('name')->limit(6)->get(),
@@ -69,12 +73,18 @@ class DashboardController extends Controller
     private function healthWorker(User $user): View
     {
         $facilityId = $user->facility_id;
+        $dayStart = today();
+        $dayEnd = today()->addDay();
 
         return view('dashboards.health-worker', [
             'stats' => [
-                'openedToday' => PassportAccess::query()->where('user_id', $user->id)->whereDate('opened_at', today())->count(),
-                'visitsToday' => Visit::query()->whereHas('stages', fn ($query) => $query->where('recorded_by', $user->id)->whereDate('recorded_at', today()))->count(),
-                'issuedToday' => Patient::query()->where('registered_facility_id', $facilityId)->whereDate('created_at', today())->count(),
+                'openedToday' => PassportAccess::query()->where('user_id', $user->id)
+                    ->where('opened_at', '>=', $dayStart)->where('opened_at', '<', $dayEnd)->count(),
+                'visitsToday' => Visit::query()->whereHas('stages', fn ($query) => $query
+                    ->where('recorded_by', $user->id)
+                    ->where('recorded_at', '>=', $dayStart)->where('recorded_at', '<', $dayEnd))->count(),
+                'issuedToday' => Patient::query()->where('registered_facility_id', $facilityId)
+                    ->where('created_at', '>=', $dayStart)->where('created_at', '<', $dayEnd)->count(),
             ],
             'openPassports' => PassportAccess::query()->with('patient')->where('user_id', $user->id)->open()->latest('opened_at')->get(),
             'recentVisits' => Visit::query()->with('patient')->whereHas('stages', fn ($query) => $query->where('recorded_by', $user->id))->latest('started_at')->limit(8)->get(),
