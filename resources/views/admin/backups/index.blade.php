@@ -2,6 +2,7 @@
     <x-page-header title="Backups">
         <x-slot:breadcrumb>{{ $automatic ? 'Automatic backup every day at '.$time : 'Automatic backups are switched off' }}</x-slot:breadcrumb>
         <x-slot:actions>
+            <a href="{{ route('admin.backups.restore') }}" class="btn-secondary">Restore from a file</a>
             <form method="POST" action="{{ route('admin.backups.store') }}">@csrf<button type="submit" class="btn-primary"><x-icon name="database" class="h-4 w-4" /> Back up now</button></form>
         </x-slot:actions>
     </x-page-header>

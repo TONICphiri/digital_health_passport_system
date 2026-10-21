@@ -71,6 +71,8 @@ Route::middleware('auth')->group(function () use ($can) {
         Route::middleware($can(P::ManageBackups))->prefix('backups')->name('backups.')->group(function () {
             Route::get('/', [Admin\BackupController::class, 'index'])->name('index');
             Route::post('/', [Admin\BackupController::class, 'store'])->name('store');
+            Route::get('/restore', [Admin\BackupController::class, 'restoreForm'])->name('restore');
+            Route::post('/restore', [Admin\BackupController::class, 'restore'])->name('restore.store');
             Route::get('{backup}/download', [Admin\BackupController::class, 'download'])->name('download');
             Route::delete('{backup}', [Admin\BackupController::class, 'destroy'])->name('destroy');
         });

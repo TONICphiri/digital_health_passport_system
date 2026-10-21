@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 /**
  * Lets the System Administrator see, make and download backups.
@@ -58,5 +59,37 @@ class BackupController extends Controller
         $this->backups->delete($backup);
 
         return back()->with('success', 'The backup has been deleted.');
+    }
+
+    /**
+     * The route already requires the backups.manage permission, so the form
+     * and the restore itself are covered by that middleware.
+     */
+    public function restoreForm(): View
+    {
+        return view('admin.backups.restore');
+    }
+
+    public function restore(Request $request): RedirectResponse
+    {
+        $request->validate([
+            'backup_file' => ['required', 'file'],
+            'confirm' => ['required', 'accepted'],
+        ]);
+
+        set_time_limit(0);
+
+        $path = $request->file('backup_file')->getRealPath();
+
+        try {
+            $restored = $this->backups->restore($path);
+            $this->audit->record('backup.restored', 'Restored the database from an uploaded backup.', ['restored' => $restored]);
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return back()->with('error', 'The backup could not be restored. '.$exception->getMessage());
+        }
+
+        return redirect()->route('admin.backups.index')->with('success', 'The backup was restored successfully.');
     }
 }
