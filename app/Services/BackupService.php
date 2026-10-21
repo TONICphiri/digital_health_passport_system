@@ -233,12 +233,17 @@ class BackupService
      */
     private function ownTables(): array
     {
-        return collect(glob(database_path('migrations/*.php')) ?: [])
+        $fromMigrations = collect(glob(database_path('migrations/*.php')) ?: [])
             ->flatMap(function (string $file) {
                 preg_match_all("/Schema::create\(\s*['\"]([^'\"]+)['\"]/", (string) file_get_contents($file), $matches);
 
                 return $matches[1];
-            })
+            });
+
+        $permissionTables = collect(config('permission.table_names', []))->values()->filter()->all();
+
+        return $fromMigrations
+            ->merge($permissionTables)
             ->unique()
             ->values()
             ->all();
