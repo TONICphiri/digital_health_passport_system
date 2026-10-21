@@ -8,6 +8,7 @@
         <div><label for="from" class="label">From</label><input id="from" type="date" name="from" value="{{ $from->toDateString() }}" class="input"></div>
         <div><label for="to" class="label">To</label><input id="to" type="date" name="to" value="{{ $to->toDateString() }}" class="input"></div>
         <button type="submit" class="btn-primary">Show report</button>
+        <button type="submit" name="export" value="csv" class="btn-secondary">Export CSV</button>
     </form>
 
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
