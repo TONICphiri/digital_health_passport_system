@@ -37,7 +37,7 @@
     <div class="grid items-start gap-6 lg:grid-cols-3">
         <form method="POST" action="{{ route('visits.stage.store', [$patient, $stage->value]) }}" class="panel lg:col-span-2">
             @csrf
-            <div class="panel-body space-y-5">
+            <div class="panel-body space-y-5 relative min-h-[400px]">
                 @if ($stage === VisitStageType::Reception)
                     <x-field.textarea name="reason" label="Reason for the visit" :value="$stageRecord?->summary ?? $visit->reason" rows="2" required />
                 @elseif ($stage === VisitStageType::Triage)
@@ -90,16 +90,28 @@
                 <div>
                     <h3 class="mb-2 text-sm font-semibold">Vital signs</h3>
                     <p class="mb-3 text-[13px] text-muted">Leave a reading blank if it was not taken. A new reading is added and the earlier ones are kept.</p>
-                    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                        @foreach ($vitalFields as $field => [$label, $step])
-                            <x-field.input :name="$field" :label="$label" type="number" :value="$vitalValues[$field]" :step="$step" :min="$limits[$field]['min']" :max="$limits[$field]['max']" inputmode="decimal" />
-                        @endforeach
+                    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <x-field.input name="temperature" label="Temperature (°C)" type="number" :value="$vitalValues['temperature']" :step="0.1" :min="$limits['temperature']['min']" :max="$limits['temperature']['max']" inputmode="decimal" />
+                        <x-field.input name="weight" label="Weight (kg)" type="number" :value="$vitalValues['weight']" :step="0.1" :min="$limits['weight']['min']" :max="$limits['weight']['max']" inputmode="decimal" />
+                        <x-field.input name="height" label="Height (cm)" type="number" :value="$vitalValues['height']" :step="0.1" :min="$limits['height']['min']" :max="$limits['height']['max']" inputmode="decimal" />
+                        <div class="flex flex-col gap-1">
+                            <label class="label">Blood pressure</label>
+                            <div class="flex gap-1">
+                                <x-field.input name="systolic_pressure" label="Systolic" type="number" :value="$vitalValues['systolic_pressure']" :step="1" :min="$limits['systolic_pressure']['min']" :max="$limits['systolic_pressure']['max']" inputmode="decimal" class="flex-1" />
+                                <x-field.input name="diastolic_pressure" label="Diastolic" type="number" :value="$vitalValues['diastolic_pressure']" :step="1" :min="$limits['diastolic_pressure']['min']" :max="$limits['diastolic_pressure']['max']" inputmode="decimal" class="flex-1" />
+                            </div>
+                        </div>
+                        <x-field.input name="pulse_rate" label="Pulse (per minute)" type="number" :value="$vitalValues['pulse_rate']" :step="1" :min="$limits['pulse_rate']['min']" :max="$limits['pulse_rate']['max']" inputmode="decimal" />
+                        <x-field.input name="oxygen_saturation" label="Oxygen saturation (%)" type="number" :value="$vitalValues['oxygen_saturation']" :step="1" :min="$limits['oxygen_saturation']['min']" :max="$limits['oxygen_saturation']['max']" inputmode="decimal" />
                     </div>
                 </div>
             </div>
-            <div class="flex justify-end gap-2 border-t border-line px-5 py-3">
-                <a href="{{ route('patients.show', $patient) }}" class="btn-secondary">Cancel</a>
-                <button type="submit" class="btn-primary">Save {{ $stage->label() }}</button>
+            {{-- Sticky footer actions so Save/Cancel stay visible on long forms --}}
+            <div class="absolute inset-x-0 bottom-0 z-10 bg-white border-t border-line p-3 shadow-sm">
+                <div class="max-w-4xl mx-auto flex gap-3 justify-end sm:justify-between px-4">
+                    <a href="{{ route('patients.show', $patient) }}" class="btn-secondary btn-sm shrink-0">Cancel</a>
+                    <button type="submit" class="btn-primary btn-sm shrink-0">Save {{ $stage->label() }}</button>
+                </div>
             </div>
         </form>
 
