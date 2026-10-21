@@ -32,12 +32,21 @@ class VisitService
      */
     public function openOrDraft(Patient $patient, User $worker): Visit
     {
-        return $patient->visits()->open()->latest('started_at')->first()
-            ?? new Visit([
+        return DB::transaction(function () use ($patient, $worker) {
+            $patient = Patient::query()->whereKey($patient->id)->lockForUpdate()->firstOrFail();
+
+            $open = $patient->visits()->open()->latest('started_at')->first();
+
+            if ($open) {
+                return $open;
+            }
+
+            return new Visit([
                 'patient_id' => $patient->id,
                 'facility_id' => $worker->facility_id,
                 'status' => VisitStatus::InProgress,
             ]);
+        });
     }
 
     /**
@@ -94,7 +103,7 @@ class VisitService
                 throw new WorkflowException('This visit is complete and can no longer be changed.');
             }
 
-            $visit->medications()->whereIn('id', $ids)->where('dispensed', false)->update([
+            $visit->medications()->whereIn('id', $ids)->where('visit_id', $visit->id)->where('dispensed', false)->update([
                 'dispensed' => true,
                 'dispensed_by' => $worker->id,
                 'dispensed_at' => now(),
