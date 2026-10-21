@@ -25,7 +25,7 @@ class SettingsSeeder extends Seeder
             ['offline_draft_hours', '24', 'Hours a visit typed offline is kept on the device', 'general', 'number', null],
             ['immunisation_grace_days', '28', 'Days a vaccine stays on time after its due date', 'immunisation', 'number', 'After this a vaccine is shown as overdue and a reminder is created.'],
             ['email_notifications_enabled', '0', 'Send notifications by email', 'notifications', 'boolean', null],
-            ['sms_notifications_enabled', '0', 'Send notifications by text message', 'notifications', 'boolean', null],
+            ['sms_notifications_enabled', '1', 'Send notifications by text message', 'notifications', 'boolean', null],
             ['phone_country_code', '265', 'Country calling code for phone numbers', 'notifications', 'text', null],
             ['backup_enabled', '1', 'Make a backup every day', 'backups', 'boolean', null],
             ['backup_retention_days', '30', 'Days to keep backups', 'backups', 'number', null],

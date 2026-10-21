@@ -10,6 +10,15 @@ class ReminderDueNotification extends SystemNotification
     {
     }
 
+    /** Whether the SMS channel was used for this delivery. */
+    public bool $smsChannelUsed = false;
+
+    /** SMS delivery status: 'sent' or 'failed'. */
+    public ?string $smsDeliveryStatus = null;
+
+    /** SMS error message if delivery failed. */
+    public ?string $smsDeliveryError = null;
+
     public function reminderId(): int
     {
         return $this->reminder->id;

@@ -12,6 +12,10 @@ use Illuminate\Support\Str;
  * Sends vaccination and medication reminders that are due. Repeating
  * reminders, such as a monthly antiretroviral therapy refill, move to their
  * next due date after sending. Runs every morning from the scheduler.
+ *
+ * A reminder is only advanced (due date moved forward or marked completed)
+ * when delivery actually succeeded. Failed deliveries stay in the due queue
+ * so they are retried the next day.
  */
 class ReminderService
 {
@@ -27,22 +31,28 @@ class ReminderService
         $sent = 0;
 
         Reminder::query()->due()->with('patient.portalAccount', 'patient.mother.portalAccount')
-            ->chunkById(200, function ($reminders) use (&$sent) {
-                foreach ($reminders as $reminder) {
-                    if ($this->notifier->toPatient($reminder->patient, new ReminderDueNotification($reminder))) {
-                        $sent++;
-                    } elseif (! $reminder->deliveries()->where('batch', 'like', 'none-%')->whereDate('created_at', today())->exists()) {
-                        // Nobody could be reached, so staff can see why nothing arrived.
-                        ReminderDelivery::create([
-                            'reminder_id' => $reminder->id,
-                            'batch' => 'none-'.Str::uuid(),
-                            'channel' => 'portal',
-                            'status' => ReminderDelivery::SKIPPED,
-                            'detail' => 'No active portal account for this passport holder.',
-                        ]);
-                    }
+            ->each(function (Reminder $reminder) use (&$sent) {
+                $notification = new ReminderDueNotification($reminder);
+                $delivered = $this->notifier->toPatient($reminder->patient, $notification);
 
+                if ($delivered) {
+                    $sent++;
                     $this->advance($reminder);
+
+                    return;
+                }
+
+                // Delivery failed (no active portal account). Record why,
+                // but do NOT advance the reminder — it stays due and is
+                // retried the next scheduler run.
+                if (! $reminder->deliveries()->where('batch', 'like', 'none-%')->whereDate('created_at', today())->exists()) {
+                    ReminderDelivery::create([
+                        'reminder_id' => $reminder->id,
+                        'batch' => 'none-'.Str::uuid(),
+                        'channel' => 'portal',
+                        'status' => ReminderDelivery::SKIPPED,
+                        'detail' => 'No active portal account for this passport holder.',
+                    ]);
                 }
             });
 
