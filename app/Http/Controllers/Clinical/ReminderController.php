@@ -61,4 +61,39 @@ class ReminderController extends Controller
 
         return back()->with('success', 'The reminder has been stopped.');
     }
+
+    public function edit(Reminder $reminder): View
+    {
+        $this->authorize('manageReminders', $reminder->patient);
+
+        return view('clinical.reminder-edit', [
+            'patient' => $reminder->patient,
+            'reminder' => $reminder,
+            'categories' => ReminderCategory::options(),
+        ]);
+    }
+
+    public function update(Request $request, Reminder $reminder, AuditLogger $audit): RedirectResponse
+    {
+        $this->authorize('manageReminders', $reminder->patient);
+
+        $data = $request->validate([
+            'category' => ['required', Rule::enum(ReminderCategory::class)],
+            'title' => ['required', 'string', 'max:150'],
+            'message' => ['required', 'string', 'max:500'],
+            'due_on' => ['required', 'date', 'after_or_equal:' . ($reminder->due_on?->toDateString() ?? today()->toDateString())],
+            'repeat_every_days' => ['nullable', 'integer', 'min:1', 'max:365'],
+        ], [], ['due_on' => 'first reminder date', 'repeat_every_days' => 'repeat interval']);
+
+        $reminder->update([
+            ...$data,
+            'is_confidential' => $request->boolean('is_confidential'),
+            'status' => ReminderStatus::Active,
+            'last_sent_at' => null,
+        ]);
+
+        $audit->record('reminder.updated', "Updated a reminder for {$reminder->patient->full_name}.", $reminder);
+
+        return redirect()->route('patients.show', $reminder->patient)->with('success', 'The reminder has been updated.');
+    }
 }

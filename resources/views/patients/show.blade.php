@@ -3,7 +3,7 @@
         <x-slot:breadcrumb>
             <a href="{{ route('patients.scan') }}" class="hover:text-brand-700">Open a passport</a>
             <x-icon name="chevron-right" class="h-3.5 w-3.5" />
-            <span class="mono">{{ $patient->passport_number }}</span>
+            <span class="mono">{{ $patient->masked_passport_number }}</span>
         </x-slot:breadcrumb>
         <x-slot:actions>
             @can('recordVaccination', $patient)
@@ -28,7 +28,7 @@
                 <div class="panel-body flex items-center gap-4">
                     <div class="h-28 w-28 shrink-0 border border-line [&>svg]:h-full [&>svg]:w-full" role="img" aria-label="QR code of {{ $patient->full_name }}">{!! $qrCode !!}</div>
                     <div class="min-w-0 text-sm">
-                        <p class="mono font-medium">{{ $patient->passport_number }}</p>
+                        <p class="mono font-medium">{{ $patient->masked_passport_number }}</p>
                         <p class="text-muted">{{ $patient->sex->label() }}, born {{ $patient->date_of_birth->format('j M Y') }}</p>
                         <p class="text-muted">{{ $patient->district?->name }}</p>
                         <x-status :value="$patient->status" />
@@ -87,16 +87,19 @@
                         <p class="px-5 py-4 text-sm text-muted">Reception starts the visit. Triage, consultation and dispensing are added at their stations.</p>
                     @endif
 
-                    <div class="flex flex-wrap gap-2 border-t border-line px-5 py-3">
+                    <div class="flex flex-wrap gap-1 border-t border-line px-5 py-2">
                         @foreach (\App\Enums\VisitStageType::cases() as $stage)
                             @if ($canRecordStage[$stage->value])
-                                <a href="{{ route('visits.stage.create', [$patient, $stage->value]) }}" class="{{ $openVisit && $openVisit->stage($stage) ? 'btn-secondary' : 'btn-primary' }} btn-sm">
-                                    {{ $openVisit && $openVisit->stage($stage) ? 'Change' : 'Record' }} {{ $stage->label() }}
+                                <a href="{{ route('visits.stage.create', [$patient, $stage->value]) }}" class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded bg-white border border-line {{ $openVisit && $openVisit->stage($stage) ? 'bg-brand-50 border-brand-100 text-brand-700 font-medium' : 'text-muted hover:bg-paper transition-colors' }}">
+                                    {{ $stage->label() }}
+                                    @if ($openVisit && $openVisit->stage($stage)) <x-badge tone="success" class="min-w-[1.2rem] text-[10px]">Done</x-badge>@endif
                                 </a>
                             @endif
                         @endforeach
                         @if ($canDispense)
-                            <a href="{{ route('visits.dispense', [$patient, $openVisit]) }}" class="btn-primary btn-sm"><x-icon name="pill" class="h-4 w-4" /> Hand over medicines</a>
+                            <a href="{{ route('visits.dispense', [$patient, $openVisit]) }}" class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded bg-brand-600 text-white hover:bg-brand-700 transition-colors">
+                                <x-icon name="pill" class="h-3.5 w-3.5" />
+                            </a>
                         @endif
                     </div>
                 </section>
@@ -106,12 +109,17 @@
                 <section class="panel">
                     <div class="panel-header"><h2 class="panel-title">Completed visits</h2></div>
                     @foreach ($pastVisits as $visit)
-                        <div class="border-b border-line last:border-b-0">
+                        <div class="border-b border-line last:border-b-0 cursor-pointer" x-data="{ open: false }" @click="open = !open">
                             <div class="flex items-center justify-between gap-3 bg-paper px-5 py-2">
                                 <p class="text-sm font-medium">{{ $visit->started_at?->format('j M Y, H:i') ?? 'Unknown date' }}</p>
-                                <x-status :value="$visit->status" />
+                                <div class="flex items-center gap-2">
+                                    <x-status :value="$visit->status" />
+                                    <span class="text-[10px] text-muted">{{ $open ? 'Hide' : 'Show' }} details</span>
+                                </div>
                             </div>
-                            <x-visit-timeline :visit="$visit" />
+                            <div x-show="open" x-transition>
+                                <x-visit-timeline :visit="$visit" />
+                            </div>
                         </div>
                     @endforeach
                 </section>
@@ -141,6 +149,7 @@
                         <div class="flex items-center gap-2">
                             <x-status :value="$reminder->status" />
                             @can('manageReminders', $patient)
+                                <a href="{{ route('reminders.edit', $reminder) }}" class="btn-secondary btn-sm">Edit</a>
                                 @if ($reminder->status === App\Enums\ReminderStatus::Active)
                                     <form method="POST" action="{{ route('reminders.stop', $reminder) }}">@csrf @method('PATCH')<button class="btn-secondary btn-sm">Stop</button></form>
                                 @endif

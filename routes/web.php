@@ -129,6 +129,8 @@ Route::middleware('auth')->group(function () use ($can) {
     Route::middleware($can(P::ManageReminders))->group(function () {
         Route::get('patients/{patient}/reminders/create', [Clinical\ReminderController::class, 'create'])->name('reminders.create');
         Route::post('patients/{patient}/reminders', [Clinical\ReminderController::class, 'store'])->name('reminders.store');
+        Route::get('reminders/{reminder}/edit', [Clinical\ReminderController::class, 'edit'])->name('reminders.edit');
+        Route::put('reminders/{reminder}', [Clinical\ReminderController::class, 'update'])->name('reminders.update');
         Route::patch('reminders/{reminder}/stop', [Clinical\ReminderController::class, 'stop'])->name('reminders.stop');
     });
 
