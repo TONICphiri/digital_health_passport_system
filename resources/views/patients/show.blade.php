@@ -87,18 +87,20 @@
                         <p class="px-5 py-4 text-sm text-muted">Reception starts the visit. Triage, consultation and dispensing are added at their stations.</p>
                     @endif
 
-                    <div class="flex flex-wrap gap-1 border-t border-line px-5 py-2">
+                    <div class="flex flex-wrap gap-2 border-t border-line px-5 py-3">
                         @foreach (\App\Enums\VisitStageType::cases() as $stage)
                             @if ($canRecordStage[$stage->value])
-                                <a href="{{ route('visits.stage.create', [$patient, $stage->value]) }}" class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded bg-white border border-line {{ $openVisit && $openVisit->stage($stage) ? 'bg-brand-50 border-brand-100 text-brand-700 font-medium' : 'text-muted hover:bg-paper transition-colors' }}">
-                                    {{ $stage->label() }}
+                                <a href="{{ route('visits.stage.create', [$patient, $stage->value]) }}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md shadow-sm transition-all {{ $openVisit && $openVisit->stage($stage) ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100' : ($stage->value === 'triage' ? 'bg-brand-600 text-white hover:bg-brand-700' : 'bg-white text-slate-700 border border-line hover:bg-paper hover:text-brand-700') }}">
+                                    <x-icon name="{{ $stage->value === 'triage' ? 'heart-pulse' : ($stage->value === 'reception' ? 'door-open' : ($stage->value === 'consultation' ? 'stethoscope' : ($stage->value === 'dispensing' ? 'pill' : 'clipboard'))) }}" class="h-4 w-4" />
+                                    {{ $stage->value === 'triage' ? 'Record Triage' : $stage->label() }}
                                     @if ($openVisit && $openVisit->stage($stage)) <x-badge tone="success" class="min-w-[1.2rem] text-[10px]">Done</x-badge>@endif
                                 </a>
                             @endif
                         @endforeach
                         @if ($canDispense)
-                            <a href="{{ route('visits.dispense', [$patient, $openVisit]) }}" class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded bg-brand-600 text-white hover:bg-brand-700 transition-colors">
-                                <x-icon name="pill" class="h-3.5 w-3.5" />
+                            <a href="{{ route('visits.dispense', [$patient, $openVisit]) }}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-md shadow-sm bg-brand-600 text-white hover:bg-brand-700 transition-all">
+                                <x-icon name="pill" class="h-4 w-4" />
+                                Dispense
                             </a>
                         @endif
                     </div>
