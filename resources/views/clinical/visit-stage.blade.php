@@ -58,32 +58,43 @@
                         </template>
                     </div>
                 @elseif ($stage === VisitStageType::Consultation)
-                    <x-field.input name="diagnosis" label="Diagnosis" :value="$stageRecord?->summary" required />
-                    <x-field.textarea name="treatment_summary" label="Treatment given" :value="$stageRecord?->payload['treatment'] ?? null" rows="3" />
-                    <x-field.input name="follow_up_on" label="Follow up date" type="date" :value="$visit->follow_up_on?->toDateString()" :min="today()->addDay()->toDateString()" />
-
-                    <div x-data="repeater(@js(old('medications', $visit->exists ? $visit->medications->map(fn ($m) => ['name' => $m->name, 'dosage' => $m->dosage, 'frequency' => $m->frequency, 'duration_days' => $m->duration_days])->all() : [])), { name: '', dosage: '', frequency: '', duration_days: '' }, {{ $maxMedications }})">
-                        <div class="mb-2 flex items-center justify-between">
-                            <h3 class="text-sm font-semibold">Medicines</h3>
-                            <button type="button" class="btn-secondary btn-sm" @click="add()" :disabled="rows.length >= {{ $maxMedications }}"><x-icon name="plus" class="h-4 w-4" /> Add medicine</button>
+                    <div class="rounded-lg border border-brand-100 bg-brand-50/30 p-4 space-y-4">
+                        <div class="flex items-center gap-2">
+                            <x-icon name="stethoscope" class="h-5 w-5 text-brand-600" />
+                            <h3 class="text-base font-semibold text-slate-900">Clinical Assessment</h3>
                         </div>
+                        <x-field.input name="diagnosis" label="Diagnosis" :value="$stageRecord?->summary" required placeholder="e.g., Malaria, uncomplicated" />
+                        <x-field.textarea name="treatment_summary" label="Treatment Plan / Notes" :value="$stageRecord?->payload['treatment'] ?? null" rows="4" placeholder="Describe treatment given, advice to patient, follow-up instructions..." />
+                        <x-field.input name="follow_up_on" label="Follow-up Date" type="date" :value="$visit->follow_up_on?->toDateString()" :min="today()->addDay()->toDateString()" />
+                    </div>
+
+                    <div class="rounded-lg border border-line bg-white p-4" x-data="repeater(@js(old('medications', $visit->exists ? $visit->medications->map(fn ($m) => ['name' => $m->name, 'dosage' => $m->dosage, 'frequency' => $m->frequency, 'duration_days' => $m->duration_days])->all() : [])), { name: '', dosage: '', frequency: '', duration_days: '' }, {{ $maxMedications }})">
+                        <div class="mb-3 flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <x-icon name="pill" class="h-5 w-5 text-brand-600" />
+                                <h3 class="text-base font-semibold text-slate-900">Prescribed Medicines</h3>
+                            </div>
+                            <button type="button" class="btn-primary btn-sm" @click="add()" :disabled="rows.length >= {{ $maxMedications }}"><x-icon name="plus" class="h-4 w-4" /> Add Medicine</button>
+                        </div>
+                        <p class="mb-3 text-sm text-muted">Prescribe up to {{ $maxMedications }} medicines. Leave blank to prescribe none.</p>
                         <template x-for="(row, index) in rows" :key="index">
-                            <div class="mb-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1.2fr_0.8fr_auto]">
-                                <div><label class="label" :for="'med-name-' + index">Medicine</label><input :id="'med-name-' + index" class="input" :name="'medications[' + index + '][name]'" x-model="row.name" maxlength="150"></div>
-                                <div><label class="label" :for="'med-dose-' + index">Dosage</label><input :id="'med-dose-' + index" class="input" :name="'medications[' + index + '][dosage]'" x-model="row.dosage" maxlength="100"></div>
+                            <div class="mb-3 p-3 bg-paper rounded-lg border border-line grid gap-3 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1.2fr_0.8fr_auto]">
+                                <div><label class="label" :for="'med-name-' + index">Medicine Name</label><input :id="'med-name-' + index" class="input" :name="'medications[' + index + '][name]'" x-model="row.name" maxlength="150" placeholder="e.g., Paracetamol"></div>
+                                <div><label class="label" :for="'med-dose-' + index">Dosage</label><input :id="'med-dose-' + index" class="input" :name="'medications[' + index + '][dosage]'" x-model="row.dosage" maxlength="100" placeholder="e.g., 500 mg"></div>
                                 <div>
-                                    <label class="label" :for="'med-freq-' + index">How often</label>
+                                    <label class="label" :for="'med-freq-' + index">Frequency</label>
                                     <select :id="'med-freq-' + index" class="input" :name="'medications[' + index + '][frequency]'" x-model="row.frequency">
-                                        <option value="">Choose</option>
+                                        <option value="">Select frequency</option>
                                         @foreach ($frequencies as $frequency)
                                             <option value="{{ $frequency }}">{{ $frequency }}</option>
                                         @endforeach
                                     </select>
                                 </div>
-                                <div><label class="label" :for="'med-days-' + index">Days</label><input :id="'med-days-' + index" type="number" min="1" max="365" class="input" :name="'medications[' + index + '][duration_days]'" x-model="row.duration_days"></div>
-                                <div class="flex items-end"><button type="button" class="btn-secondary btn-sm" @click="remove(index)" x-show="rows.length > 1" aria-label="Remove medicine"><x-icon name="x" class="h-4 w-4" /></button></div>
+                                <div><label class="label" :for="'med-days-' + index">Duration (days)</label><input :id="'med-days-' + index" type="number" min="1" max="365" class="input" :name="'medications[' + index + '][duration_days]'" x-model="row.duration_days" placeholder="3"></div>
+                                <div class="flex items-end pb-0.5"><button type="button" class="btn-secondary btn-sm" @click="remove(index)" x-show="rows.length > 1" aria-label="Remove medicine"><x-icon name="x" class="h-4 w-4" /></button></div>
                             </div>
                         </template>
+                        <div x-show="rows.length === 0" class="text-center py-4 text-sm text-muted">No medicines prescribed. Click "Add Medicine" to add prescriptions.</div>
                     </div>
                 @endif
 
