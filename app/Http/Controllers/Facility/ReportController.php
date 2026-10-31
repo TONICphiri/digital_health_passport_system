@@ -23,6 +23,11 @@ class ReportController extends Controller
         $to = $request->date('to') ?? today();
 
         $facility = $request->user()->facility;
+
+        // A facility administrator is always linked to a facility, but a broken
+        // account must not turn the report page into a server error.
+        abort_unless($facility, 403, 'Your account is not linked to a facility, so there are no reports to show.');
+
         $report = $reports->summary($facility, $from, $to);
 
         if ($request->input('export') === 'csv') {
@@ -69,7 +74,9 @@ class ReportController extends Controller
             fputcsv($handle, ['Top diagnoses']);
             fputcsv($handle, ['Diagnosis', 'Visits']);
             foreach (Collection::make($report['top_diagnoses']) as $row) {
-                fputcsv($handle, [$row['diagnosis'] ?? '', $row['visits'] ?? 0]);
+                // The rows come from a grouped query, so they are objects and
+                // the visit count is aliased as "total" in the summary query.
+                fputcsv($handle, [$row->diagnosis ?? '', $row->total ?? 0]);
             }
 
             fclose($handle);

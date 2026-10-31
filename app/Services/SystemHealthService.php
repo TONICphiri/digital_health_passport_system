@@ -21,6 +21,7 @@ class SystemHealthService
     {
         return [
             $this->databaseCheck(),
+            $this->migrationsCheck(),
             $this->storageCheck(),
             $this->queueCheck(),
             $this->failedJobsCheck(),
@@ -73,6 +74,33 @@ class SystemHealthService
             report($exception);
 
             return ['label' => 'Database connection', 'value' => 'Not reachable', 'healthy' => false];
+        }
+    }
+
+    /**
+     * A half applied migration is the usual reason a page that needs a newer
+     * table or column fails, so the status is shown here before it is seen as
+     * an error on a working screen.
+     */
+    private function migrationsCheck(): array
+    {
+        try {
+            $files = app('migrator')->getMigrationFiles(database_path('migrations'));
+            $ran = app('migration.repository')->getRan();
+            $pending = array_values(array_diff(array_keys($files), $ran));
+            $count = count($pending);
+
+            return [
+                'label' => 'Database schema',
+                'value' => $count === 0
+                    ? 'Up to date'
+                    : $count.' migration'.($count === 1 ? '' : 's').' pending. Run php artisan migrate.',
+                'healthy' => $count === 0,
+            ];
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return ['label' => 'Database schema', 'value' => 'Could not read the migration status', 'healthy' => false];
         }
     }
 

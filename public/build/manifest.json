@@ -276,7 +276,7 @@
     "src": "node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-vietnamese-700-normal.woff2"
   },
   "resources/css/app.css": {
-    "file": "assets/app-NYWZ1Tyn.css",
+    "file": "assets/app-BF7V0vjF.css",
     "src": "resources/css/app.css",
     "isEntry": true,
     "name": "app",
@@ -294,7 +294,7 @@
     ]
   },
   "resources/js/scanner.js": {
-    "file": "assets/scanner-C9ZUfrvT.js",
+    "file": "assets/scanner-ChevYRmM.js",
     "name": "scanner",
     "src": "resources/js/scanner.js",
     "isEntry": true,

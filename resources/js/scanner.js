@@ -284,15 +284,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* ---- Camera ---- */
 
+    // Browsers only allow the camera on a secure page: https, localhost or
+    // 127.0.0.1. A phone opening the system over a plain LAN address cannot
+    // use it, so say that plainly instead of reporting a generic failure.
+    const canUseCamera = () => window.isSecureContext && Boolean(navigator.mediaDevices?.getUserMedia);
+
+    const cameraMessage = (error) => {
+        switch (error?.name) {
+            case 'NotAllowedError':
+            case 'SecurityError':
+                return 'Camera access was blocked. Allow the camera in the browser settings and try again, or use "Holder has no card".';
+            case 'NotFoundError':
+            case 'DevicesNotFoundError':
+                return 'No camera was found on this device. Use "Holder has no card" to open the passport by number and date of birth.';
+            case 'NotReadableError':
+            case 'TrackStartError':
+                return 'The camera is being used by another app. Close it and try again.';
+            case 'OverconstrainedError':
+                return 'The camera does not support the requested view. Try again or use "Holder has no card".';
+            default:
+                return 'The camera could not be started. Allow camera access and try again, or use "Holder has no card".';
+        }
+    };
+
     const start = async () => {
         if (running) return;
+
+        if (!canUseCamera()) {
+            setStatus('The camera needs a secure connection. Open this page over https:// or on localhost, or use "Holder has no card".');
+            return;
+        }
 
         try {
             await scanner.start(
                 { facingMode: 'environment' },
                 { fps: 10, qrbox: { width: 220, height: 220 } },
                 async (decoded) => {
-                    await scanner.stop();
+                    try {
+                        await scanner.stop();
+                    } catch { /* the camera was already stopped */ }
                     running = false;
                     startButton.disabled = false;
                     setStatus('Card read.');
@@ -322,8 +352,8 @@ document.addEventListener('DOMContentLoaded', () => {
             running = true;
             startButton.disabled = true;
             setStatus('Hold the card in front of the camera.');
-        } catch {
-            setStatus('The camera could not be started. Allow camera access and try again.');
+        } catch (error) {
+            setStatus(cameraMessage(error));
         }
     };
 
@@ -334,5 +364,10 @@ document.addEventListener('DOMContentLoaded', () => {
     render();
 
     if (items().length) trySend();
-    start();
+
+    if (canUseCamera()) {
+        start();
+    } else {
+        setStatus('The camera needs a secure connection. Open this page over https:// or on localhost, or use "Holder has no card".');
+    }
 });

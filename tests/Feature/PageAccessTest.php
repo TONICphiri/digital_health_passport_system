@@ -60,6 +60,17 @@ class PageAccessTest extends TestCase
         }
     }
 
+    public function test_system_health_reports_the_database_schema_as_up_to_date(): void
+    {
+        $admin = User::query()->where('email', 'admin@healthpassport.mw')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->get(route('admin.system-health'))
+            ->assertOk()
+            ->assertSee('Database schema')
+            ->assertSee('Up to date');
+    }
+
     public function test_hospital_management_pages_do_not_exist(): void
     {
         foreach (['campaigns.index', 'appointments.index', 'admissions.index', 'pharmacy.index', 'facility.wards.index', 'visits.queue', 'patients.index'] as $name) {
